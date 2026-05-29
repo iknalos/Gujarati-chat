@@ -1,9 +1,0 @@
-claude_bridge
-config
-dialog_loop
-gui
-indic_f5_engine
-main
-response_filter
-text_mode
-wake_loop

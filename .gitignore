@@ -13,3 +13,4 @@ models/*.onnx
 
 # Audio reference (user-provided)
 prompts/gu_reference.wav
+*.egg-info/
