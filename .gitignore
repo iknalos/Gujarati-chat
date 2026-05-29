@@ -1,0 +1,15 @@
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.venv/
+venv/
+.env
+
+# Model weights (downloaded by install.bat)
+models/whisper-gujarati-ct2/
+models/indic_f5/
+models/*.onnx
+
+# Audio reference (user-provided)
+prompts/gu_reference.wav
