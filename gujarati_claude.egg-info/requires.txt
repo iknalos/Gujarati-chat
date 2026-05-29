@@ -1,0 +1,15 @@
+
+[dev]
+pytest>=8.0
+
+[voice]
+realtimestt>=0.3.0
+realtimetts>=0.5.0
+openwakeword>=0.6.0
+onnxruntime>=1.19.0
+sounddevice>=0.4.6
+numpy<2.0,>=1.24
+transformers>=4.44.0
+huggingface-hub>=0.24.0
+ctranslate2>=4.0
+faster-whisper>=1.0.3
