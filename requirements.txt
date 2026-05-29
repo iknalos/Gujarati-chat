@@ -1,0 +1,14 @@
+realtimestt>=0.3.0
+realtimetts>=0.5.0
+openwakeword>=0.6.0
+onnxruntime>=1.19.0
+sounddevice>=0.4.6
+numpy>=1.24,<2.0
+transformers>=4.44.0
+huggingface-hub>=0.24.0
+pystray>=0.19.5
+Pillow>=10.0.0
+# torch is installed separately via install.bat with the CUDA index URL
+# CT2 converter for the one-time Whisper conversion (Phase 2 install step)
+ctranslate2>=4.0
+faster-whisper>=1.0.3
