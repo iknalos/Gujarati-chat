@@ -31,11 +31,19 @@ def feed_chunked(text: str, chunk_size: int):
 # ---- Basic sentence buffering ------------------------------------------------
 
 def test_buffers_until_period():
+    # The period at end-of-buffer is deferred (could be "main.py" continuation).
+    # In the real pipeline, ClaudeBridge calls flush() on the turn_end event,
+    # which is what feed_chunked simulates here.
     f = ResponseFilter()
     assert f.feed("આ એક ") == []
     assert f.feed("વાક્ય ") == []
-    out = f.feed("છે.")
-    assert out == ["આ એક વાક્ય છે."]
+    assert f.feed("છે.") == []
+    assert f.flush() == ["આ એક વાક્ય છે."]
+
+
+def test_period_followed_by_space_emits_immediately():
+    f = ResponseFilter()
+    assert f.feed("આ વાક્ય છે. ") == ["આ વાક્ય છે."]
 
 
 def test_danda_is_a_terminator():
@@ -68,11 +76,13 @@ def test_drops_fenced_code_block_entirely():
 
 
 def test_code_fence_split_across_deltas():
+    # Trailing periods are deferred until next char is known; the closing
+    # fence + space (or flush) is what releases them.
     f = ResponseFilter()
-    # Opening fence split mid-string
     assert f.feed("શરૂઆત. ``") == ["શરૂઆત."]
     assert f.feed("`bash\necho hi\n``") == []
-    assert f.feed("` અંત.") == ["અંત."]
+    f.feed("` અંત.")
+    assert f.flush() == ["અંત."]
 
 
 def test_unterminated_code_block_swallowed_by_flush():
@@ -103,9 +113,37 @@ def test_invariance_across_chunk_sizes():
         assert feed_chunked(src, n) == expected, f"chunk={n} differs"
 
 
+def test_period_inside_identifier_does_not_break():
+    out = feed_chunked("Open main.py to see the bug.", 3)
+    assert out == ["Open main.py to see the bug."]
+
+
+def test_period_decimal_does_not_break():
+    out = feed_chunked("Version 1.2.3 is out.", 4)
+    assert out == ["Version 1.2.3 is out."]
+
+
+def test_period_with_trailing_space_still_breaks():
+    out = feed_chunked("End. New start.", 2)
+    assert out == ["End.", "New start."]
+
+
+def test_terminator_only_pieces_not_emitted():
+    # After a sentence-end, a lone "." (e.g. from sloppy concatenation) must
+    # not emit as a standalone sentence.
+    out = feed_chunked("first sentence? . second sentence.", 4)
+    assert out == ["first sentence?", "second sentence."]
+
+
+def test_multiple_terminators_collapse():
+    out = feed_chunked("Hey!! What?! No.", 3)
+    assert out == ["Hey!", "What?", "No."]
+
+
 def test_flush_resets_state():
     f = ResponseFilter()
     f.feed("partial")
     f.flush()
     # Filter must be reusable
-    assert f.feed("next sentence.") == ["next sentence."]
+    f.feed("next sentence.")
+    assert f.flush() == ["next sentence."]

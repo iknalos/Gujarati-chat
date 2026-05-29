@@ -99,14 +99,33 @@ class ResponseFilter:
         while i < n:
             ch = text[i]
             if ch in _TERMINATORS:
-                end = i + 1
-                while end < n and text[end] in " \t\n\r":
-                    end += 1
-                piece = text[start:end].strip()
-                if piece:
+                # Period inside an identifier ("main.py", "v1.2") is not a
+                # sentence end. Only treat "." as terminator if followed by
+                # whitespace, end-of-stream-at-flush, or another terminator.
+                # "?"/"!"/"।" are unambiguous so we always honor them.
+                if ch == ".":
+                    if i + 1 >= n:
+                        if not flush:
+                            break  # wait for the next feed to disambiguate
+                        # flush=True: treat as terminator below
+                    else:
+                        next_ch = text[i + 1]
+                        if next_ch not in " \t\n\r" and next_ch not in _TERMINATORS:
+                            i += 1
+                            continue
+                sentence_end = i + 1
+                skip_end = sentence_end
+                # Eat trailing whitespace AND further terminators ("?.", "!!")
+                while skip_end < n and (
+                    text[skip_end] in _TERMINATORS or text[skip_end] in " \t\n\r"
+                ):
+                    skip_end += 1
+                piece = text[start:sentence_end].strip()
+                # Only emit if there's content beyond the terminator itself
+                if piece and any(c not in _TERMINATORS for c in piece):
                     out.append(piece)
-                start = end
-                i = end
+                start = skip_end
+                i = skip_end
                 continue
             if ch in "\n\r":
                 run_end = i
