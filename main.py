@@ -24,6 +24,9 @@ def parse_args() -> argparse.Namespace:
                     help="Disable wake-word listener; trigger via GUI 'Wake' button.")
     ap.add_argument("--mock", action="store_true",
                     help="Run without heavy backends — useful for GUI smoke tests.")
+    ap.add_argument("--text", action="store_true",
+                    help="Keyboard input only — bypass mic/STT/TTS. Useful before "
+                         "wake word / IndicF5 / Whisper are set up.")
     return ap.parse_args()
 
 
@@ -32,6 +35,9 @@ def main() -> int:
 
     if args.mock:
         return _run_mock()
+
+    if args.text:
+        return _run_text(args)
 
     from dialog_loop import DialogLoop
     from gui import GujaratiClaudeGUI
@@ -69,6 +75,34 @@ def main() -> int:
         if wake is not None:
             wake.stop()
         dialog.shutdown()
+    return 0
+
+
+def _run_text(args) -> int:
+    """Keyboard-text mode: GUI + bridge, no audio. Lets a Gujarati speaker
+    use Claude Code by typing, before audio is set up.
+    """
+    from gui import GujaratiClaudeGUI
+    from text_mode import TextModeDriver
+
+    project_dir = Path(args.project_dir).resolve()
+    if not project_dir.is_dir():
+        print(f"--project-dir {project_dir} is not a directory", file=sys.stderr)
+        return 2
+
+    driver = TextModeDriver(project_dir=project_dir)
+    gui = GujaratiClaudeGUI(
+        on_wake=lambda: None,
+        on_stop=lambda: None,
+        on_close=driver.shutdown,
+        on_text_submit=driver.submit_text,
+    )
+    driver.add_state_listener(gui.push_state)
+    driver.add_transcript_listener(gui.push_transcript)
+    try:
+        gui.run()
+    finally:
+        driver.shutdown()
     return 0
 
 

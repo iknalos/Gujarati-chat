@@ -14,7 +14,7 @@ from __future__ import annotations
 import tkinter as tk
 from queue import Empty, Queue
 from tkinter import font as tkfont
-from typing import Callable
+from typing import Callable, Optional
 
 from dialog_loop import DialogTranscriptEntry
 
@@ -39,10 +39,12 @@ class GujaratiClaudeGUI:
         on_wake: Callable[[], None],
         on_stop: Callable[[], None],
         on_close: Callable[[], None],
+        on_text_submit: Optional[Callable[[str], None]] = None,
     ) -> None:
         self._on_wake = on_wake
         self._on_stop = on_stop
         self._on_close = on_close
+        self._on_text_submit = on_text_submit
 
         self._events: Queue[tuple[str, object]] = Queue()
         self._max_transcript_chars = 4000
@@ -69,6 +71,15 @@ class GujaratiClaudeGUI:
         tk.Button(btns, text="Wake", command=self._on_wake).pack(side="left", padx=2)
         tk.Button(btns, text="Stop", command=self._on_stop).pack(side="left", padx=2)
 
+        # Optional text-input row (shown only if on_text_submit was given).
+        if self._on_text_submit is not None:
+            entry_row = tk.Frame(self.root)
+            entry_row.pack(side="bottom", fill="x", padx=10, pady=(0, 10))
+            self._entry = tk.Entry(entry_row, font=gu_font)
+            self._entry.pack(side="left", fill="x", expand=True)
+            self._entry.bind("<Return>", lambda _e: self._submit_text())
+            tk.Button(entry_row, text="મોકલો", command=self._submit_text).pack(side="right", padx=(6, 0))
+
         self._transcript = tk.Text(
             self.root, wrap="word", font=gu_font, state="disabled",
             background="#fafafa", borderwidth=1, relief="solid",
@@ -79,6 +90,13 @@ class GujaratiClaudeGUI:
         self._transcript.tag_configure("tool", foreground="#888888")
 
         self.root.after(50, self._drain_events)
+
+    def _submit_text(self) -> None:
+        text = self._entry.get().strip()
+        if not text or self._on_text_submit is None:
+            return
+        self._entry.delete(0, "end")
+        self._on_text_submit(text)
 
     # ---- Thread-safe API (callable from any thread) -----------------------
 

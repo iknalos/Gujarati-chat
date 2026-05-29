@@ -58,7 +58,8 @@ If something doesn't work end-to-end, isolate the layer:
 | Claude bridge (no audio) | `python tools\text_chat.py` | Type Gujarati, see streaming Gujarati response |
 | Whisper STT | `python tools\stt_smoke.py` | Speak 5 phrases, see Gujarati Unicode transcripts |
 | IndicF5 TTS | `python tools\tts_smoke.py` | Hear a spoken Gujarati sentence; realtime factor < 1.0 |
-| GUI (no backends) | `python main.py --mock` | Window opens; Wake button cycles state colors |
+| Text-mode GUI (no audio) | `launch.bat --text` | Window opens, type Gujarati, see streaming Gujarati reply |
+| GUI (no backends at all) | `python main.py --mock` | Window opens; Wake button cycles state colors |
 | Pure-Python logic | `python -m pytest tests/` | 21 tests pass |
 
 ---
