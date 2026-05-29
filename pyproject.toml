@@ -1,0 +1,42 @@
+[project]
+name = "gujarati-claude"
+version = "0.1.0"
+description = "Open-source Gujarati voice wrapper for Claude Code"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.10"
+authors = [{name = "iknalos"}]
+
+# Core (text-mode) needs nothing beyond the stdlib. Voice-mode extras live
+# in requirements.txt because they pull torch + CUDA wheels which pip's
+# resolver shouldn't have to think about during a normal `pip install`.
+dependencies = []
+
+[project.optional-dependencies]
+voice = [
+    "realtimestt>=0.3.0",
+    "realtimetts>=0.5.0",
+    "openwakeword>=0.6.0",
+    "onnxruntime>=1.19.0",
+    "sounddevice>=0.4.6",
+    "numpy>=1.24,<2.0",
+    "transformers>=4.44.0",
+    "huggingface-hub>=0.24.0",
+    "ctranslate2>=4.0",
+    "faster-whisper>=1.0.3",
+]
+dev = ["pytest>=8.0"]
+
+[project.scripts]
+gujarati-claude = "main:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+py-modules = ["main", "gui", "config", "claude_bridge", "response_filter",
+              "dialog_loop", "indic_f5_engine", "wake_loop", "text_mode"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

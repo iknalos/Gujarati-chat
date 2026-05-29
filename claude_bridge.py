@@ -95,12 +95,21 @@ class ClaudeBridge:
     # ---- I/O ---------------------------------------------------------------
 
     def send(self, user_text: str) -> None:
-        """Write a user-turn JSON line to the subprocess stdin."""
+        """Write a user-turn JSON line to the subprocess stdin. Raises
+        ``BrokenPipeError`` if the subprocess has died; callers should
+        translate that into an "error" event for the GUI."""
         if not self._proc or not self._proc.stdin:
             raise RuntimeError("ClaudeBridge.start() not called")
+        if self._proc.poll() is not None:
+            raise BrokenPipeError(
+                f"claude subprocess already exited (code={self._proc.returncode})"
+            )
         payload = build_user_message(user_text)
-        self._proc.stdin.write(json.dumps(payload, ensure_ascii=False) + "\n")
-        self._proc.stdin.flush()
+        try:
+            self._proc.stdin.write(json.dumps(payload, ensure_ascii=False) + "\n")
+            self._proc.stdin.flush()
+        except (BrokenPipeError, OSError) as exc:
+            raise BrokenPipeError(f"failed writing to claude stdin: {exc}") from exc
 
     def events(self) -> "Queue[StreamEvent]":
         """Thread-safe event queue. Drain from the dialog/GUI threads."""
@@ -110,17 +119,38 @@ class ClaudeBridge:
 
     def _read_loop(self) -> None:
         assert self._proc and self._proc.stdout
-        for raw_line in self._proc.stdout:
-            line = raw_line.strip()
-            if not line:
-                continue
+        try:
+            for raw_line in self._proc.stdout:
+                line = raw_line.strip()
+                if not line:
+                    continue
+                try:
+                    ev = json.loads(line)
+                except json.JSONDecodeError as exc:
+                    self._events.put(StreamEvent("error", data={"message": str(exc), "line": line}))
+                    continue
+                for normalized in self._normalize(ev):
+                    self._events.put(normalized)
+        finally:
+            # Subprocess closed stdout. Surface a turn_end so any waiter
+            # unblocks, plus an error with the exit code + last stderr line
+            # for diagnostics.
+            exit_code = self._proc.poll() if self._proc else None
+            stderr_tail = ""
             try:
-                ev = json.loads(line)
-            except json.JSONDecodeError as exc:
-                self._events.put(StreamEvent("error", data={"message": str(exc), "line": line}))
-                continue
-            for normalized in self._normalize(ev):
-                self._events.put(normalized)
+                if self._proc and self._proc.stderr:
+                    stderr_tail = self._proc.stderr.read() or ""
+            except Exception:
+                pass
+            self._events.put(StreamEvent(
+                "error",
+                data={
+                    "message": f"claude subprocess exited (code={exit_code})",
+                    "stderr_tail": stderr_tail[-500:],
+                },
+            ))
+            # Make sure any waiter on turn_end unblocks.
+            self._events.put(StreamEvent("turn_end", data={"reason": "process_exit"}))
 
     def _normalize(self, ev: dict) -> Iterator[StreamEvent]:
         ev_type = ev.get("type")

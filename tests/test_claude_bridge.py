@@ -51,12 +51,18 @@ class FakeProc:
         self.stdin = io.StringIO()
         self.stderr = io.StringIO()
         self.killed = False
+        self.returncode = 0
 
     def wait(self, timeout=None):
         return 0
 
     def kill(self):
         self.killed = True
+
+    def poll(self):
+        # We fake an alive subprocess until the reader has drained stdout.
+        # Once stdout is exhausted, treat it as exited.
+        return None if self.stdout.tell() < len(self.stdout.getvalue()) else 0
 
 
 def _drive_bridge_with(lines):

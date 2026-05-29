@@ -1,0 +1,15 @@
+REPLACE THIS FILE WITH THE TRANSCRIPT OF YOUR REFERENCE AUDIO.
+
+Drop a clean 5-10 second Gujarati recording at `prompts/gu_reference.wav`
+and put its exact transcript here. IndicF5 will clone the voice character
+of that recording when speaking Claude's replies.
+
+Tips for a good reference clip:
+- Single speaker, no background music or noise
+- Natural conversational pace (not a recording-studio voice)
+- ~5-10 seconds long
+- Mono, 16 or 24 kHz, .wav
+
+Example transcript (replace with your own):
+
+નમસ્તે, મારું નામ ગુજરાત છે અને હું એક નમૂનો વાક્ય બોલી રહ્યો છું.

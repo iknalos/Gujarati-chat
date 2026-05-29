@@ -16,6 +16,33 @@ from pathlib import Path
 import config
 
 
+def _preflight(claude_bin: str) -> None:
+    """Print friendly messages for the most common setup failures. Doesn't
+    abort — we want the user to see them all rather than fixing one at a
+    time."""
+    import shutil
+    import subprocess
+    if not shutil.which(claude_bin):
+        print(
+            f"⚠  Cannot find '{claude_bin}' on PATH. Install Claude Code "
+            f"from https://code.claude.com and ensure it's in PATH.",
+            file=sys.stderr,
+        )
+        return
+    try:
+        r = subprocess.run(
+            [claude_bin, "auth", "status"], capture_output=True, timeout=10
+        )
+        if r.returncode != 0:
+            print(
+                "⚠  `claude auth status` exited non-zero. Run `claude auth login` "
+                "before launching GujaratiClaude.",
+                file=sys.stderr,
+            )
+    except Exception as exc:
+        print(f"⚠  Could not run `{claude_bin} auth status`: {exc}", file=sys.stderr)
+
+
 def parse_args() -> argparse.Namespace:
     ap = argparse.ArgumentParser(prog="gujarati-claude")
     ap.add_argument("--project-dir", default=str(config.PROJECT_DIR),
@@ -35,6 +62,8 @@ def main() -> int:
 
     if args.mock:
         return _run_mock()
+
+    _preflight(config.CLAUDE_BIN)
 
     if args.text:
         return _run_text(args)

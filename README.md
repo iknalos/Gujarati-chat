@@ -17,17 +17,35 @@ verification, and known gotchas.
 
 ## Quickstart
 
-### Prerequisites
+### Text mode — works in 30 seconds, no setup
+
+If `claude` is on your PATH and authenticated, you can use Gujarati Claude
+right now via the keyboard, with no extra installs:
+
+```cmd
+git clone https://github.com/iknalos/GujaratiClaude.git
+cd GujaratiClaude
+python main.py --text
+```
+
+A Tk window opens. Type Gujarati in the entry box, hit **મોકલો** (or
+Enter). You'll see streaming Gujarati responses with full Claude Code tool
+access (file edits, shell, etc.). This path requires **only** Python's
+stdlib (incl. tkinter) + an authenticated `claude` CLI — no PyTorch, no
+CUDA, no model downloads, no mic.
+
+### Voice mode — full Alexa-style experience
+
+Voice adds Whisper STT + IndicF5 TTS + an openWakeWord listener.
+Prerequisites:
+
 - Windows 10/11
-- Python 3.10 (3.11 also tested; 3.12 may need package adjustments)
+- Python 3.10 (3.11 also tested)
 - [Claude Code](https://code.claude.com) authenticated (`claude auth status` exits 0)
 - **NVIDIA GPU with ≥6 GB VRAM** for realtime TTS (CPU is 3-5× realtime — unusable for conversation)
 - ~5 GB free disk for model weights
 
-### Install
 ```cmd
-git clone https://github.com/iknalos/GujaratiClaude.git
-cd GujaratiClaude
 install.bat
 ```
 
@@ -60,7 +78,7 @@ If something doesn't work end-to-end, isolate the layer:
 | IndicF5 TTS | `python tools\tts_smoke.py` | Hear a spoken Gujarati sentence; realtime factor < 1.0 |
 | Text-mode GUI (no audio) | `launch.bat --text` | Window opens, type Gujarati, see streaming Gujarati reply |
 | GUI (no backends at all) | `python main.py --mock` | Window opens; Wake button cycles state colors |
-| Pure-Python logic | `python -m pytest tests/` | 21 tests pass |
+| Pure-Python logic | `python -m pytest tests/` | 31 tests pass |
 
 ---
 
@@ -126,7 +144,8 @@ GujaratiClaude/
 |---|---|---|
 | 1 | Skeleton + config + structure | ✅ done |
 | 2 | Gujarati STT (Whisper-CT2) | ⚠ requires Windows + mic to verify |
-| 3 | Claude Code bridge | ✅ logic done + 21 tests; needs `claude` auth to E2E |
+| 3 | Claude Code bridge | ✅ logic done + 31 tests; E2E verified through `tools/fake_claude.py` |
+| 3.5 | Text-only mode (GUI + bridge, no audio) | ✅ usable today with zero extra install |
 | 4 | IndicF5 TTS adapter | ⚠ requires CUDA + weights to verify |
 | 5 | Wake word | ⚠ requires trained ONNX (1 hr Colab) |
 | 6 | GUI polish | ✅ done (headless-smoked with Xvfb) |
