@@ -1,111 +1,124 @@
 # GujaratiClaude
 
 A Windows desktop wrapper that lets a Gujarati-only speaker use the full
-power of Claude Code by voice. Idle on the wake word **"Claude"**, then:
+power of [Claude Code](https://code.claude.com) — by keyboard today, by
+voice when you wire that up. Same brain as the official Claude Code CLI;
+all of its tools (Read, Write, Edit, Bash, Glob, Grep) are available; the
+GUI just speaks Gujarati on both sides.
 
 ```
-mic → openWakeWord → faster-whisper (Gujarati) → claude -p (stream-json) → IndicF5 → speakers
+┌─ GujaratiClaude ────────────────────────────────────────────────────┐
+│ ● idle       GujaratiClaude                       [Wake]  [Stop]    │
+├──────────────────────────────────┬──────────────────────────────────┤
+│  તમે: એક chart બનાવો               │ 📂 outputs/                       │
+│  Claude: chart.png બની ગયું        │  🖼  monthly_financials.png  112KB │
+│  ...                             │  🖼  smoke_test.png            36KB │
+│                                  │  [Open] [Folder] [Refresh]        │
+│  (chat scrolls)                  │  ┌──────────────────────────┐    │
+│                                  │  │  [chart preview]          │    │
+│                                  │  └──────────────────────────┘    │
+├──────────────────────────────────┴──────────────────────────────────┤
+│ [type Gujarati...                                          ] [મોકલો] │
+└─────────────────────────────────────────────────────────────────────┘
 ```
 
-100% open-source (MIT/Apache). $0/month beyond the Claude usage you're
-already paying for.
+**What works today** (text mode):
+- Chat with Claude in Gujarati — full Claude Code tool access
+- Claude can create matplotlib charts, process Excel, write files; they
+  auto-appear in the right pane with inline preview
+- Claude can scaffold React/Next.js projects, run dev servers, push to
+  GitHub, deploy to Vercel — all from a Gujarati prompt
+- All open-source, MIT/Apache, $0/month beyond your Claude API usage
 
-See [`PLAN.md`](PLAN.md) for the full design discussion, library
-verification, and known gotchas.
+**Coming when wired:** voice in/voice out (Whisper STT → IndicF5 TTS →
+openWakeWord "Claude" wake word) — see [Voice mode](#voice-mode-optional)
+for the remaining work.
 
 ---
 
-## Quickstart
+## Fresh-machine setup (text mode, ~10 minutes)
 
-### Text mode — works in 30 seconds, no setup
+### Prerequisites — install these once
 
-If `claude` is on your PATH and authenticated, you can use Gujarati Claude
-right now via the keyboard, with no extra installs:
+| Tool | Why | Where |
+|---|---|---|
+| **Miniconda** | Python 3.11 env (`gc311`) for matplotlib/pandas/etc. | https://docs.conda.io/en/latest/miniconda.html |
+| **Claude Code CLI** | The brain. Must be authenticated. | https://code.claude.com — then run `claude auth login` |
+| **Node.js 20+** | Lets Claude scaffold React/Next/Vite projects | https://nodejs.org/ (optional unless you want web-dev) |
+| **GitHub CLI** | Lets Claude create new repos for you | https://cli.github.com/ — then run `gh auth login` (optional) |
+| **Vercel CLI** | Lets Claude deploy your sites | `npm install -g vercel` (optional) |
+
+Verify each before the next step:
+
+```cmd
+conda --version
+claude auth status
+node --version
+gh auth status
+```
+
+### Setup the repo
 
 ```cmd
 git clone https://github.com/iknalos/GujaratiClaude.git
 cd GujaratiClaude
-python main.py --text
+setup_text.bat          :: creates gc311 env, installs python data libs (~1 min)
+install_shortcut.bat    :: adds "GujaratiClaude" to your Start menu
 ```
 
-A Tk window opens. Type Gujarati in the entry box, hit **મોકલો** (or
-Enter). You'll see streaming Gujarati responses with full Claude Code tool
-access (file edits, shell, etc.). This path requires **only** Python's
-stdlib (incl. tkinter) + an authenticated `claude` CLI — no PyTorch, no
-CUDA, no model downloads, no mic.
-
-### Voice mode — full Alexa-style experience
-
-Voice adds Whisper STT + IndicF5 TTS + an openWakeWord listener.
-Prerequisites:
-
-- Windows 10/11
-- Python 3.10 (3.11 also tested)
-- [Claude Code](https://code.claude.com) authenticated (`claude auth status` exits 0)
-- **NVIDIA GPU with ≥6 GB VRAM** for realtime TTS (CPU is 3-5× realtime — unusable for conversation)
-- ~5 GB free disk for model weights
-
-```cmd
-install.bat
-```
-
-`install.bat` creates a venv, installs PyTorch (CUDA 12.1) + onnxruntime
-+ project deps, converts the Gujarati Whisper model to CTranslate2 format,
-and downloads the IndicF5 weights. Two manual steps remain at the end:
-
-1. **Train a wake word.** Open the [openWakeWord training Colab](https://github.com/dscripka/openWakeWord/blob/main/notebooks/automatic_model_training.ipynb), train "Claude" (~1 hr free tier), save the resulting `.onnx` to `models\claude_wakeword.onnx`. Until you do, launch with `--no-wake` and click the GUI "Wake" button.
-2. **Add a reference voice.** Drop a clean 5-10 second Gujarati audio clip at `prompts\gu_reference.wav` and its transcript at `prompts\gu_reference.txt`. IndicF5 clones this clip's voice.
-
-### Run
-```cmd
-launch.bat
-```
-
-The window stays always-on-top with a state indicator and transcript pane.
-Say "Claude" to start a conversation; say "બંધ કરો" (= "stop") or stay
-silent for 12 s to end it.
+That's it. **Press the Windows key, type "GujaratiClaude", press Enter** to launch.
 
 ---
 
-## Verifying each piece independently
+## Daily use
 
-If something doesn't work end-to-end, isolate the layer:
+Launch from the Start menu (or double-click `launch_text.bat` from File
+Explorer). The dashboard opens with chat on the left, outputs on the
+right. Type any Gujarati prompt and press Enter or click **મોકલો** (Send).
 
-| What to test | Command | Expected |
-|---|---|---|
-| Claude bridge (no audio) | `python tools\text_chat.py` | Type Gujarati, see streaming Gujarati response |
-| Whisper STT | `python tools\stt_smoke.py` | Speak 5 phrases, see Gujarati Unicode transcripts |
-| IndicF5 TTS | `python tools\tts_smoke.py` | Hear a spoken Gujarati sentence; realtime factor < 1.0 |
-| Text-mode GUI (no audio) | `launch.bat --text` | Window opens, type Gujarati, see streaming Gujarati reply |
-| GUI (no backends at all) | `python main.py --mock` | Window opens; Wake button cycles state colors |
-| Pure-Python logic | `python -m pytest tests/` | 31 tests pass |
+### Things to try (all in Gujarati)
 
----
+| Prompt | What happens |
+|---|---|
+| `આ ફોલ્ડરમાં કઈ ફાઇલો છે?` | Claude lists your user folder |
+| `<path>.xlsx ની data વાંચીને bar chart બનાવો` | Claude reads Excel with pandas, plots, saves PNG → appears in right pane |
+| `એક React counter app બનાવો અને localhost પર ચાલુ કરો` | Claude `pnpm create vite`, installs deps, starts dev server, tells you the URL |
+| `GitHub પર push કરો` | Claude `git init`, `gh repo create`, `git push` (needs `gh auth login` first) |
+| `vercel પર deploy કરો` | Claude links project to Vercel, deploys to production |
 
-## Configuration
+### Defaults
 
-Override any value in `config.py` with a `GC_<NAME>` environment variable. The most useful:
-
-| Variable | Default | What it does |
-|---|---|---|
-| `GC_CLAUDE_BIN` | `claude` | Path to the `claude` executable |
-| `GC_PROJECT_DIR` | repo root | Working directory passed to the subprocess |
-| `GC_PERMISSION_MODE` | `acceptEdits` | `acceptEdits` / `auto` / `default` / `bypassPermissions` |
-| `GC_STT_COMPUTE_TYPE` | `int8_float16` | `int8` (CPU), `float16` (GPU), `int8_float16` (GPU mixed) |
-| `GC_WAKE_THRESHOLD` | `0.5` | Increase if you get false wakes |
-| `GC_DIALOG_TIMEOUT_SECS` | `12` | Silence before returning to wake-word listening |
+- **Working directory:** `%USERPROFILE%` (so Claude can read anywhere
+  under your user folder — Desktop, Documents, project folders).
+  Override with `launch_text.bat --project-dir C:\specific\folder`.
+- **Permission mode:** `bypassPermissions` (Claude runs Bash/Write/Edit
+  without per-call prompts — required because the GUI has no approval
+  dialog). Override with `set GC_PERMISSION_MODE=acceptEdits` before
+  launching.
 
 ---
 
 ## Architecture
 
-See [`PLAN.md`](PLAN.md) for the full diagram. In short: a single Python
-process runs four threads — wake-word listener, dialog state machine,
-Claude subprocess reader, and the Tk mainloop — all communicating
-through thread-safe queues. The `claude -p` subprocess is **persistent**
-(stays alive for the lifetime of the app, multi-turn via stream-json
-stdin), so each turn is just a JSON write — no cold start, no `--resume`
-gymnastics.
+```
+┌──────────────────────────┐         ┌──────────────────────────────┐
+│  GujaratiClaude (you)    │         │  Claude Code subprocess      │
+│                          │  text   │                              │
+│  Tk chat (Gujarati) ──── │ ──────► │  claude -p                   │
+│                          │  JSON   │  --input-format stream-json  │
+│  Outputs panel ◄──────── │ ◄────── │  --output-format stream-json │
+│  (watches outputs/)      │  files  │  has Read/Write/Edit/Bash/   │
+└──────────────────────────┘         │  Glob/Grep — same as the CLI │
+                                     └──────────────────────────────┘
+```
+
+A single Python process runs:
+- **Tk mainloop** — chat transcript, outputs file list, image preview
+- **claude_bridge** — long-lived `claude -p` subprocess, line-buffered JSON
+- **outputs_watcher** — 1 Hz poll of `outputs/`, emits new files to the panel
+- (voice mode adds: wake-word listener thread, dialog-loop state machine)
+
+All threads communicate through `queue.Queue` (Tkinter isn't thread-safe).
 
 ---
 
@@ -113,28 +126,83 @@ gymnastics.
 
 ```
 GujaratiClaude/
-├── main.py                    entrypoint
-├── gui.py                     Tkinter window, three states, transcript
-├── dialog_loop.py             record → STT → Claude → TTS state machine
-├── claude_bridge.py           persistent stream-json subprocess
-├── response_filter.py         strip code, buffer sentences for TTS
-├── wake_loop.py               openWakeWord listener
-├── indic_f5_engine.py         RealtimeTTS-shaped IndicF5 adapter
-├── config.py                  centralized settings (env-overridable)
+├── main.py                   entrypoint (text & voice modes)
+├── gui.py                    unified dashboard (chat + outputs in one window)
+├── outputs_panel.py          embedded outputs Frame (file list + preview)
+├── outputs_watcher.py        polling thread that watches outputs/
+├── claude_bridge.py          persistent claude -p subprocess
+├── response_filter.py        sentence buffer (with strip_code toggle)
+├── text_mode.py              keyboard driver
+├── config.py                 paths + env-overridable settings
 ├── prompts/
-│   ├── gu_system.txt          Gujarati persona prompt for Claude
-│   ├── gu_reference.wav       (you provide) reference voice for cloning
-│   └── gu_reference.txt       (you provide) transcript of the above
-├── models/                    (populated by install.bat)
+│   ├── gu_system.txt         Gujarati persona + outputs/web-dev conventions
+│   ├── gu_reference.wav      (you record) voice clone target for IndicF5
+│   └── gu_reference.txt      (you write) transcript of the above
+├── outputs/                  (gitignored) Claude saves charts/files here
+├── dialog_loop.py            voice-mode state machine (not active in text mode)
+├── wake_loop.py              openWakeWord listener (needs trained .onnx)
+├── indic_f5_engine.py        IndicF5 TTS engine adapter
 ├── tools/
-│   ├── text_chat.py           Phase-3 smoke: type → Claude → print
-│   ├── stt_smoke.py           Phase-2 smoke: mic → Whisper → print
-│   └── tts_smoke.py           Phase-4 smoke: text → IndicF5 → speakers
-├── tests/                     21 unit tests for filter + bridge protocol
-├── install.bat
-├── launch.bat
-└── PLAN.md
+│   ├── check_install.py      diagnostic — what's installed, what's missing
+│   ├── text_chat.py, stt_smoke.py, tts_smoke.py
+│   └── fake_claude.py        test double for the bridge tests
+├── tests/                    34 unit tests (31 pass on Windows, 3 hardcode /tmp)
+├── setup_text.bat            ⭐ one-time: creates gc311 env + installs python libs
+├── launch_text.bat           ⭐ daily: launches the dashboard
+├── install_shortcut.bat      ⭐ one-time: adds Start menu entry
+├── install.bat               voice mode setup (CUDA PyTorch, Whisper, IndicF5)
+├── launch.bat                voice mode launcher
+├── PLAN.md                   original design doc
+└── README.md
 ```
+
+---
+
+## Configuration
+
+Override any value in `config.py` with a `GC_<NAME>` environment variable.
+The most useful:
+
+| Variable | Default | What it does |
+|---|---|---|
+| `GC_CLAUDE_BIN` | `claude` | Path to the `claude` executable |
+| `GC_PROJECT_DIR` | repo root | Working directory for the subprocess |
+| `GC_PERMISSION_MODE` | `bypassPermissions` | `acceptEdits` / `auto` / `bypassPermissions` |
+| `GC_WAKE_THRESHOLD` | `0.5` | Wake-word sensitivity (lower = more sensitive) |
+| `GC_DIALOG_TIMEOUT_SECS` | `12` | Silence before returning to wake-word listening |
+
+---
+
+## Verifying each piece independently
+
+Run `python tools\check_install.py` first — it tells you what's missing.
+
+| What to test | Command | Expected |
+|---|---|---|
+| Claude bridge alone | `conda run -n gc311 python main.py --text` | Window opens, type Gujarati, see streamed Gujarati reply |
+| Pure-Python logic | `conda run -n gc311 python -m pytest tests/` | 31 pass / 3 fail (POSIX path bugs in Ultraplan's tests) |
+| GUI without backends | `python main.py --mock` | Window opens, Wake button cycles colors |
+| Whisper STT (voice mode) | `python tools\stt_smoke.py` | Speak Gujarati, see Unicode transcripts |
+| IndicF5 TTS (voice mode) | `python tools\tts_smoke.py` | Hear spoken Gujarati; realtime factor < 1.0 |
+
+---
+
+## Voice mode (optional)
+
+Adds Whisper STT + IndicF5 TTS + an openWakeWord listener. **Needs an
+NVIDIA GPU** with ≥6 GB VRAM for usable latency.
+
+```cmd
+install.bat
+```
+
+Then two manual steps:
+
+1. **Train the wake word.** Open the [openWakeWord training Colab](https://github.com/dscripka/openWakeWord/blob/main/notebooks/automatic_model_training.ipynb), train "Claude" (~1 hr on free tier), save `.onnx` to `models\claude_wakeword.onnx`.
+2. **Record a reference voice.** Drop a 5-10 sec clean Gujarati clip at `prompts\gu_reference.wav` and its transcript at `prompts\gu_reference.txt`. IndicF5 clones this voice.
+
+Launch with `launch.bat`. Say "Claude" → it wakes → speak Gujarati →
+Claude replies aloud → 12 s of silence (or say "બંધ કરો") returns to idle.
 
 ---
 
@@ -142,17 +210,37 @@ GujaratiClaude/
 
 | Phase | What | Status |
 |---|---|---|
-| 1 | Skeleton + config + structure | ✅ done |
-| 2 | Gujarati STT (Whisper-CT2) | ⚠ requires Windows + mic to verify |
-| 3 | Claude Code bridge | ✅ logic done + 31 tests; E2E verified through `tools/fake_claude.py` |
-| 3.5 | Text-only mode (GUI + bridge, no audio) | ✅ usable today with zero extra install |
-| 4 | IndicF5 TTS adapter | ⚠ requires CUDA + weights to verify |
-| 5 | Wake word | ⚠ requires trained ONNX (1 hr Colab) |
-| 6 | GUI polish | ✅ done (headless-smoked with Xvfb) |
-| 7 | Launcher / packaging | ✅ install.bat, launch.bat |
+| 1 | Skeleton + config + structure | ✅ |
+| 2 | Gujarati STT (Whisper-CT2) | ⚠ untested (no GPU on dev machine) |
+| 3 | Claude bridge (stream-json) | ✅ E2E verified |
+| 3.5 | **Text-mode dashboard** | ✅ **fully usable today, $0 setup** |
+| 3.6 | **Outputs panel (charts, Excel, files)** | ✅ |
+| 3.7 | **Web-dev workflow (React, GitHub, Vercel)** | ✅ |
+| 4 | IndicF5 TTS adapter | ⚠ untested (no GPU) |
+| 5 | Wake word | ⚠ needs trained ONNX |
+| 6 | Unified single-window GUI | ✅ |
+| 7 | Launchers (text + voice + Start menu shortcut) | ✅ |
+
+---
+
+## Troubleshooting
+
+| Symptom | Fix |
+|---|---|
+| `claude not on PATH` | Install Claude Code from https://code.claude.com, reopen terminal |
+| `claude auth status` non-zero | `claude auth login` |
+| `EnvironmentLocationNotFound: gc311` | Run `setup_text.bat` first |
+| `Cannot find 'conda'` | Install Miniconda + restart terminal |
+| `gh repo create` fails | `gh auth login` (one-time, browser device flow) |
+| Bridge says "no response for 10 min" | Claude is genuinely stuck — close and relaunch |
+| Outputs panel doesn't update | Click **Refresh**; verify `outputs/` folder exists |
+| Gujarati text looks like boxes | Install [Nirmala UI](https://learn.microsoft.com/en-us/typography/font-list/nirmala-ui) font (default on Win10/11) |
+| Wake word never fires | Lower threshold: `set GC_WAKE_THRESHOLD=0.35` before launching |
 
 ---
 
 ## License
 
-MIT. See library licenses in `PLAN.md` for the upstream stack.
+MIT. See [`PLAN.md`](PLAN.md) for the original design and library
+licenses (faster-whisper MIT, openWakeWord Apache, IndicF5/AI4Bharat
+verify before commercial use).
