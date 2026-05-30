@@ -60,7 +60,7 @@ gh auth status
 ### Setup the repo
 
 ```cmd
-git clone https://github.com/iknalos/GujaratiClaude.git
+git clone https://github.com/iknalos/Gujarati-chat.git GujaratiClaude
 cd GujaratiClaude
 setup_text.bat          :: creates gc311 env, installs python data libs (~1 min)
 install_shortcut.bat    :: adds "GujaratiClaude" to your Start menu
