@@ -18,6 +18,7 @@ def _env(name: str, default: str) -> str:
 # --- Paths -------------------------------------------------------------------
 PROMPTS_DIR = REPO_ROOT / "prompts"
 MODELS_DIR = REPO_ROOT / "models"
+OUTPUTS_DIR = REPO_ROOT / "outputs"
 
 GU_SYSTEM_PROMPT_FILE = PROMPTS_DIR / "gu_system.txt"
 GU_REFERENCE_WAV = PROMPTS_DIR / "gu_reference.wav"
@@ -31,7 +32,7 @@ WAKEWORD_ONNX = MODELS_DIR / "claude_wakeword.onnx"
 # --- Claude Code subprocess --------------------------------------------------
 CLAUDE_BIN = _env("CLAUDE_BIN", "claude")
 PROJECT_DIR = Path(_env("PROJECT_DIR", str(REPO_ROOT))).resolve()
-PERMISSION_MODE = _env("PERMISSION_MODE", "acceptEdits")
+PERMISSION_MODE = _env("PERMISSION_MODE", "bypassPermissions")
 
 
 # --- STT ---------------------------------------------------------------------

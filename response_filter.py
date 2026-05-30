@@ -21,7 +21,11 @@ _TERMINATORS = set("।.?!")
 
 
 class ResponseFilter:
-    def __init__(self) -> None:
+    def __init__(self, strip_code: bool = True) -> None:
+        # strip_code=False keeps fenced blocks, inline backticks, and file
+        # paths intact — required for text mode where the user reads the
+        # transcript on screen. TTS callers must keep this True.
+        self._strip_code = strip_code
         self._tail = ""        # raw chars not yet decided (may end in `` or `)
         self._pending = ""     # cleaned chars after last sentence terminator
         self._in_code = False  # currently inside a ``` ... ``` block?
@@ -31,14 +35,18 @@ class ResponseFilter:
     def feed(self, delta: str) -> List[str]:
         if not delta:
             return []
-        self._tail += delta
-        cleaned = self._strip_code(flush=False)
-        self._pending += cleaned
+        if self._strip_code:
+            self._tail += delta
+            cleaned = self._strip_fences(flush=False)
+            self._pending += cleaned
+        else:
+            self._pending += delta
         return self._split_sentences(flush=False)
 
     def flush(self) -> List[str]:
-        cleaned = self._strip_code(flush=True)
-        self._pending += cleaned
+        if self._strip_code:
+            cleaned = self._strip_fences(flush=True)
+            self._pending += cleaned
         sentences = self._split_sentences(flush=True)
         self._tail = ""
         self._pending = ""
@@ -47,7 +55,7 @@ class ResponseFilter:
 
     # ---- Code-fence handling ----------------------------------------------
 
-    def _strip_code(self, flush: bool) -> str:
+    def _strip_fences(self, flush: bool) -> str:
         """Walk ``self._tail`` and return text guaranteed to be outside any
         fenced code block. Leaves up to two trailing backticks in ``self._tail``
         when ``flush=False`` so a future delta can complete a fence."""
@@ -91,7 +99,7 @@ class ResponseFilter:
     # ---- Sentence splitting ------------------------------------------------
 
     def _split_sentences(self, flush: bool) -> List[str]:
-        text = self._strip_inline(self._pending)
+        text = self._strip_inline(self._pending) if self._strip_code else self._pending
         out: List[str] = []
         start = 0
         i = 0

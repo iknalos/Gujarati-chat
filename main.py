@@ -1,9 +1,11 @@
 """GujaratiClaude entrypoint.
 
 Wires together:
-- WakeLoop  → fires "wake" into the dialog loop
-- DialogLoop → record → STT → Claude → TTS
-- GujaratiClaudeGUI → Tk window showing state + transcript
+- WakeLoop  → fires "wake" into the dialog loop (voice mode)
+- DialogLoop → record → STT → Claude → TTS (voice mode)
+- TextModeDriver → keyboard → Claude → text (text mode)
+- GujaratiClaudeGUI → unified Tk dashboard (chat left, outputs right)
+- OutputsWatcher → polls outputs/ folder and pushes new files to the panel
 
 Run on Windows from ``launch.bat`` (which activates the venv first).
 """
@@ -82,10 +84,13 @@ def main() -> int:
         on_wake=dialog.wake,
         on_stop=dialog.stop_dialog,
         on_close=dialog.shutdown,
+        outputs_dir=config.OUTPUTS_DIR,
     )
     dialog.add_state_listener(gui.push_state)
     dialog.add_transcript_listener(gui.push_transcript)
     dialog.start()
+
+    watcher = _start_watcher(gui)
 
     wake = None
     if not args.no_wake and config.WAKEWORD_ONNX.exists():
@@ -101,6 +106,7 @@ def main() -> int:
     try:
         gui.run()
     finally:
+        watcher.stop()
         if wake is not None:
             wake.stop()
         dialog.shutdown()
@@ -108,9 +114,7 @@ def main() -> int:
 
 
 def _run_text(args) -> int:
-    """Keyboard-text mode: GUI + bridge, no audio. Lets a Gujarati speaker
-    use Claude Code by typing, before audio is set up.
-    """
+    """Keyboard-text mode: GUI + bridge, no audio."""
     from gui import GujaratiClaudeGUI
     from text_mode import TextModeDriver
 
@@ -124,23 +128,44 @@ def _run_text(args) -> int:
         on_wake=lambda: None,
         on_stop=lambda: None,
         on_close=driver.shutdown,
+        outputs_dir=config.OUTPUTS_DIR,
         on_text_submit=driver.submit_text,
     )
     driver.add_state_listener(gui.push_state)
     driver.add_transcript_listener(gui.push_transcript)
+
+    watcher = _start_watcher(gui)
+
     try:
         gui.run()
     finally:
+        watcher.stop()
         driver.shutdown()
     return 0
 
 
-def _run_mock() -> int:
-    """GUI-only mode for smoke-testing without audio/CUDA/Claude available.
+def _start_watcher(gui):
+    """Start the OutputsWatcher pointed at the GUI's embedded outputs panel.
 
-    Wake button cycles through states and appends fake transcript entries
-    so the visual UI can be verified end-to-end.
+    Failure in the watcher must not break the chat: any exception is logged
+    and a no-op watcher is returned in its place.
     """
+    from outputs_watcher import OutputsWatcher
+    try:
+        config.OUTPUTS_DIR.mkdir(parents=True, exist_ok=True)
+        watcher = OutputsWatcher(config.OUTPUTS_DIR, gui.outputs_panel.push_file)
+        watcher.start()
+        gui.outputs_panel.seed_existing(watcher.initial_files())
+        return watcher
+    except Exception as exc:
+        print(f"⚠  Outputs watcher disabled: {exc}", file=sys.stderr)
+        class _NullWatcher:
+            def stop(self): pass
+        return _NullWatcher()
+
+
+def _run_mock() -> int:
+    """GUI-only mode for smoke-testing without audio/CUDA/Claude available."""
     from gui import GujaratiClaudeGUI
     from dialog_loop import DialogTranscriptEntry
 
@@ -156,7 +181,11 @@ def _run_mock() -> int:
     def fake_stop():
         gui.push_state("idle")
 
-    gui = GujaratiClaudeGUI(on_wake=fake_wake, on_stop=fake_stop, on_close=lambda: None)
+    config.OUTPUTS_DIR.mkdir(parents=True, exist_ok=True)
+    gui = GujaratiClaudeGUI(
+        on_wake=fake_wake, on_stop=fake_stop, on_close=lambda: None,
+        outputs_dir=config.OUTPUTS_DIR,
+    )
     gui.run()
     return 0
 

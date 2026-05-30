@@ -1,22 +1,29 @@
-"""Tkinter window for GujaratiClaude.
+"""Unified GujaratiClaude dashboard — single Tk window with three regions:
 
-Three visual states (idle/listening/thinking/speaking) shown via a colored
-indicator dot, plus a scrolling transcript pane showing the last N turns in
-Gujarati script. Updates from background threads are marshalled through a
-``queue.Queue`` and drained by an ``after()`` poll in the Tk mainloop —
-Tkinter is not thread-safe.
+  ┌─ Top: state indicator + title + Wake / Stop ───────────────────┐
+  │                                                                 │
+  │   Chat transcript (left)       │   Outputs panel (right)         │
+  │   - User & assistant lines     │   - File list                   │
+  │   - Auto-scrolls               │   - Image preview               │
+  │                                │                                 │
+  ├─ Bottom: text entry + Send (text mode only) ─────────────────────┤
+  └──────────────────────────────────────────────────────────────────┘
 
-The window is always-on-top, ~420×320, with two buttons: Wake (manual
-trigger for testing without a wake word) and Stop (end current dialog).
+Replaces the older split-window layout (separate Toplevel for outputs).
+Wake/Stop buttons stay visible even in text mode — they're cheap and the
+voice flow may share this same window once wake-word/STT are wired up.
 """
 from __future__ import annotations
 
 import tkinter as tk
+from pathlib import Path
 from queue import Empty, Queue
 from tkinter import font as tkfont
+from tkinter import ttk
 from typing import Callable, Optional
 
 from dialog_loop import DialogTranscriptEntry
+from outputs_panel import OutputsPanel
 
 
 _STATE_COLOR = {
@@ -39,6 +46,7 @@ class GujaratiClaudeGUI:
         on_wake: Callable[[], None],
         on_stop: Callable[[], None],
         on_close: Callable[[], None],
+        outputs_dir: Path,
         on_text_submit: Optional[Callable[[str], None]] = None,
     ) -> None:
         self._on_wake = on_wake
@@ -47,47 +55,73 @@ class GujaratiClaudeGUI:
         self._on_text_submit = on_text_submit
 
         self._events: Queue[tuple[str, object]] = Queue()
-        self._max_transcript_chars = 4000
+        self._max_transcript_chars = 8000
 
         self.root = tk.Tk()
         self.root.title("GujaratiClaude")
-        self.root.geometry("420x320")
-        self.root.attributes("-topmost", True)
+        self.root.geometry("1100x680")
+        self.root.minsize(820, 480)
         self.root.protocol("WM_DELETE_WINDOW", self._handle_close)
 
-        # Prefer a Gujarati-capable font; Tk will fall back if absent.
         gu_font = tkfont.Font(family="Nirmala UI", size=12)
+        title_font = tkfont.Font(family="Segoe UI", size=13, weight="bold")
 
-        top = tk.Frame(self.root)
-        top.pack(side="top", fill="x", padx=10, pady=8)
-        self._dot = tk.Canvas(top, width=24, height=24, highlightthickness=0)
-        self._dot_id = self._dot.create_oval(2, 2, 22, 22, fill=_STATE_COLOR["idle"], outline="")
+        # ---- Header bar ------------------------------------------------
+        header = tk.Frame(self.root, padx=12, pady=8)
+        header.pack(side="top", fill="x")
+
+        self._dot = tk.Canvas(header, width=22, height=22, highlightthickness=0)
+        self._dot_id = self._dot.create_oval(2, 2, 20, 20,
+                                             fill=_STATE_COLOR["idle"], outline="")
         self._dot.pack(side="left")
-        self._state_label = tk.Label(top, text=_STATE_LABEL["idle"], font=gu_font)
-        self._state_label.pack(side="left", padx=8)
+        self._state_label = tk.Label(header, text=_STATE_LABEL["idle"], font=gu_font)
+        self._state_label.pack(side="left", padx=(8, 0))
 
-        btns = tk.Frame(top)
+        tk.Label(header, text="GujaratiClaude", font=title_font).pack(
+            side="left", padx=(24, 0)
+        )
+
+        btns = tk.Frame(header)
         btns.pack(side="right")
         tk.Button(btns, text="Wake", command=self._on_wake).pack(side="left", padx=2)
         tk.Button(btns, text="Stop", command=self._on_stop).pack(side="left", padx=2)
 
-        # Optional text-input row (shown only if on_text_submit was given).
+        # ---- Bottom entry row (text mode only) -------------------------
         if self._on_text_submit is not None:
             entry_row = tk.Frame(self.root)
-            entry_row.pack(side="bottom", fill="x", padx=10, pady=(0, 10))
+            entry_row.pack(side="bottom", fill="x", padx=12, pady=(0, 10))
             self._entry = tk.Entry(entry_row, font=gu_font)
-            self._entry.pack(side="left", fill="x", expand=True)
+            self._entry.pack(side="left", fill="x", expand=True, ipady=4)
             self._entry.bind("<Return>", lambda _e: self._submit_text())
-            tk.Button(entry_row, text="મોકલો", command=self._submit_text).pack(side="right", padx=(6, 0))
+            tk.Button(entry_row, text="મોકલો", command=self._submit_text).pack(
+                side="right", padx=(8, 0), ipadx=6
+            )
 
+        # ---- Main split: chat (left) | outputs (right) -----------------
+        paned = ttk.PanedWindow(self.root, orient="horizontal")
+        paned.pack(side="bottom", fill="both", expand=True, padx=12, pady=(0, 10))
+
+        chat_frame = tk.Frame(paned)
         self._transcript = tk.Text(
-            self.root, wrap="word", font=gu_font, state="disabled",
+            chat_frame, wrap="word", font=gu_font, state="disabled",
             background="#fafafa", borderwidth=1, relief="solid",
+            padx=8, pady=8,
         )
-        self._transcript.pack(side="bottom", fill="both", expand=True, padx=10, pady=(0, 10))
+        sb_chat = ttk.Scrollbar(chat_frame, orient="vertical",
+                                command=self._transcript.yview)
+        self._transcript.configure(yscrollcommand=sb_chat.set)
+        self._transcript.pack(side="left", fill="both", expand=True)
+        sb_chat.pack(side="right", fill="y")
         self._transcript.tag_configure("user", foreground="#0033cc")
         self._transcript.tag_configure("assistant", foreground="#006600")
         self._transcript.tag_configure("tool", foreground="#888888")
+        paned.add(chat_frame, weight=3)
+
+        self.outputs_panel = OutputsPanel(paned, outputs_dir)
+        paned.add(self.outputs_panel, weight=2)
+
+        if self._on_text_submit is not None:
+            self._entry.focus_set()
 
         self.root.after(50, self._drain_events)
 
@@ -98,7 +132,7 @@ class GujaratiClaudeGUI:
         self._entry.delete(0, "end")
         self._on_text_submit(text)
 
-    # ---- Thread-safe API (callable from any thread) -----------------------
+    # ---- Thread-safe API -------------------------------------------------
 
     def push_state(self, state: str) -> None:
         self._events.put(("state", state))
@@ -106,7 +140,7 @@ class GujaratiClaudeGUI:
     def push_transcript(self, entry: DialogTranscriptEntry) -> None:
         self._events.put(("transcript", entry))
 
-    # ---- Mainloop helpers -------------------------------------------------
+    # ---- Mainloop helpers ------------------------------------------------
 
     def _drain_events(self) -> None:
         try:
@@ -131,7 +165,6 @@ class GujaratiClaudeGUI:
         prefix = {"user": "તમે: ", "assistant": "Claude: ", "tool": ""}.get(entry.role, "")
         tag = entry.role if entry.role in ("user", "assistant", "tool") else "tool"
         self._transcript.insert("end", prefix + entry.text + "\n", tag)
-        # Cap transcript length so memory doesn't grow without bound.
         content = self._transcript.get("1.0", "end")
         if len(content) > self._max_transcript_chars:
             excess = len(content) - self._max_transcript_chars

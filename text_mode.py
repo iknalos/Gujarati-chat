@@ -38,6 +38,7 @@ class TextModeDriver:
             system_prompt_file=config.GU_SYSTEM_PROMPT_FILE,
             claude_bin=config.CLAUDE_BIN,
             permission_mode=config.PERMISSION_MODE,
+            strip_code=False,
         )
         self._started = False
         self._lock = threading.Lock()
@@ -89,12 +90,16 @@ class TextModeDriver:
             self._set_state(self.STATE_IDLE)
 
     def _drain_until_turn_end(self) -> None:
+        # 600 s covers long-running tool work like `pnpm install`, `vercel
+        # deploy`, large file reads, etc. We rely on the bridge to also
+        # close the queue if the subprocess dies (it pushes turn_end with
+        # reason=process_exit), so we don't need a tight liveness check.
         q = self._bridge.events()
         while True:
             try:
-                ev: StreamEvent = q.get(timeout=60)
+                ev: StreamEvent = q.get(timeout=600)
             except Empty:
-                self._emit("tool", "[bridge: no response for 60 s]")
+                self._emit("tool", "[bridge: no response for 10 min — giving up]")
                 return
             if ev.kind == "text_delta":
                 self._emit("assistant", ev.text)

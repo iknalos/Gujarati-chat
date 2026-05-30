@@ -42,13 +42,14 @@ class ClaudeBridge:
         system_prompt_file: Path,
         claude_bin: str = "claude",
         permission_mode: str = "acceptEdits",
+        strip_code: bool = True,
     ) -> None:
         self.project_dir = project_dir
         self.system_prompt_file = system_prompt_file
         self.claude_bin = claude_bin
         self.permission_mode = permission_mode
         self._proc: Optional[subprocess.Popen] = None
-        self._filter = ResponseFilter()
+        self._filter = ResponseFilter(strip_code=strip_code)
         self._events: "Queue[StreamEvent]" = Queue()
         self._reader_thread: Optional[threading.Thread] = None
 
@@ -64,6 +65,12 @@ class ClaudeBridge:
             "--append-system-prompt-file", str(self.system_prompt_file),
             "--permission-mode", self.permission_mode,
         ]
+        # Strip Claude Code's session-detection env vars: when the wrapper
+        # itself runs from inside a Claude Code session, those would make
+        # the spawned `claude` exit with "cannot be launched inside another
+        # Claude Code session".
+        child_env = {k: v for k, v in os.environ.items()
+                     if k != "CLAUDECODE" and not k.startswith("CLAUDE_CODE_")}
         self._proc = subprocess.Popen(
             argv,
             cwd=str(self.project_dir),
@@ -73,7 +80,7 @@ class ClaudeBridge:
             text=True,
             bufsize=1,
             encoding="utf-8",
-            env=os.environ.copy(),
+            env=child_env,
         )
         self._reader_thread = threading.Thread(
             target=self._read_loop, name="claude-reader", daemon=True
