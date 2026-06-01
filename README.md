@@ -57,16 +57,27 @@ node --version
 gh auth status
 ```
 
-### Setup the repo
+### Setup the repo — one command (recommended)
 
-```cmd
-git clone https://github.com/iknalos/Gujarati-chat.git GujaratiClaude
-cd GujaratiClaude
-setup_text.bat          :: creates gc311 env, installs python data libs (~1 min)
-install_shortcut.bat    :: adds "GujaratiClaude" to your Start menu
+```powershell
+git clone https://github.com/iknalos/Gujarati-chat.git
+cd Gujarati-chat
+.\bootstrap.bat          :: detects + installs everything, runs tests, launches webapp
 ```
 
-That's it. **Press the Windows key, type "GujaratiClaude", press Enter** to launch.
+`bootstrap.bat` checks for git, conda, Node, Claude Code; installs the missing ones via `winget`; creates the `gc311` Python 3.11 env; installs all Python deps; runs the test suite; launches the webapp; and reports **READY** when `localhost:5174` is serving. **~5 minutes total** on a fresh machine. Idempotent — safe to re-run.
+
+See **[INSTALL.md](INSTALL.md)** for what each step does and how to fix common failures.
+
+### Alternate manual setup
+
+```cmd
+setup_text.bat          :: creates gc311 env, installs python libs only
+install_shortcut.bat    :: adds "GujaratiClaude" to your Start menu
+launch_web.bat          :: opens the webapp
+```
+
+After either path, **press the Windows key, type "GujaratiClaude", press Enter** to launch (the Start-menu shortcut runs the webapp).
 
 ---
 
