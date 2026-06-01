@@ -45,15 +45,14 @@ _DARK_USER_FG       = "#7eb6ff"
 _DARK_ASSISTANT_FG  = "#7ee787"
 _DARK_TOOL_FG       = "#9aa0a6"
 
-# Quick-action templates. (__CLEAR__ is a special sentinel: clears transcript.)
-QUICK_ACTIONS: list[tuple[str, str, str]] = [
-    ("📊", "ચાર્ટ",   "આ ફોલ્ડરમાં Excel/CSV ફાઇલ વાંચીને chart બનાવો અને outputs માં save કરો."),
-    ("📁", "ફાઇલો",   "આ ફોલ્ડરમાં કઈ ફાઇલો છે? યાદી આપો."),
-    ("⚡", "React",   "એક new React app બનાવો અને localhost પર ચાલુ કરો."),
-    ("🚀", "Deploy",  "આ project ને Vercel પર deploy કરો."),
-    ("🐙", "GitHub",  "આ project માટે GitHub પર નવો repo બનાવો અને push કરો."),
-    ("🧹", "Clear",   "__CLEAR__"),
-]
+# Welcome text shown in an empty transcript on first launch.
+_WELCOME_TEXT = (
+    "નમસ્તે! ગુજરાતી માં લખીને નીચે મોકલો — Claude બધું જ કરી શકે છે:\n"
+    "  • ફાઇલ વાંચો/બદલો, code લખો, commands ચલાવો\n"
+    "  • Excel data વાંચો અને chart બનાવો (outputs/ માં save થાય)\n"
+    "  • React/Next app બનાવો અને localhost પર run કરો\n"
+    "  • GitHub પર push કરો અને Vercel પર deploy કરો\n"
+)
 
 
 class GujaratiClaudeGUI:
@@ -107,8 +106,9 @@ class GujaratiClaudeGUI:
 
         btns = ttk.Frame(header)
         btns.pack(side="right")
-        ttk.Button(btns, text="Wake", command=self._on_wake, width=8).pack(side="left", padx=3)
-        ttk.Button(btns, text="Stop", command=self._on_stop, width=8).pack(side="left", padx=3)
+        ttk.Button(btns, text="🧹 Clear", command=self._do_clear, width=10).pack(side="left", padx=3)
+        ttk.Button(btns, text="Wake", command=self._on_wake, width=7).pack(side="left", padx=3)
+        ttk.Button(btns, text="Stop", command=self._on_stop, width=7).pack(side="left", padx=3)
 
         # ---- Bottom: entry row (text mode only) ------------------------
         if self._on_text_submit is not None:
@@ -120,17 +120,6 @@ class GujaratiClaudeGUI:
             ttk.Button(entry_row, text="મોકલો", command=self._submit_text, width=10).pack(
                 side="right", padx=(10, 0)
             )
-
-            # ---- Quick-action buttons (just above entry) ---------------
-            actions_row = ttk.Frame(self.root, padding=(14, 6, 14, 4))
-            actions_row.pack(side="bottom", fill="x")
-            ttk.Label(actions_row, text="ઝડપી:", font=action_font).pack(side="left", padx=(0, 8))
-            for emoji, label, template in QUICK_ACTIONS:
-                btn_text = f"{emoji} {label}"
-                ttk.Button(
-                    actions_row, text=btn_text,
-                    command=lambda t=template: self._quick_action(t),
-                ).pack(side="left", padx=3)
 
         # ---- Main split: chat (left) | outputs (right) -----------------
         paned = ttk.PanedWindow(self.root, orient="horizontal")
@@ -162,6 +151,11 @@ class GujaratiClaudeGUI:
         # Match the canvas dot's background to the theme.
         self.root.after(0, lambda: self._dot.configure(background=self._tk_bg()))
 
+        # Welcome banner (replaced by replayed history if any exists)
+        self._transcript.configure(state="normal")
+        self._transcript.insert("end", _WELCOME_TEXT + "\n", "tool")
+        self._transcript.configure(state="disabled")
+
         if self._on_text_submit is not None:
             self._entry.focus_set()
 
@@ -174,27 +168,20 @@ class GujaratiClaudeGUI:
         except tk.TclError:
             return "#202020"
 
-    def _quick_action(self, template: str) -> None:
-        if template == "__CLEAR__":
-            # Visual wipe
-            self._transcript.configure(state="normal")
-            self._transcript.delete("1.0", "end")
-            self._transcript.insert("end",
-                "── વાતચીત સાફ થઈ — fresh start ──\n", "tool")
-            self._transcript.configure(state="disabled")
-            # Wipe persisted history + reset Claude session (caller hook)
-            if self._on_clear is not None:
-                try:
-                    self._on_clear()
-                except Exception:
-                    pass
-            return
-        if not hasattr(self, "_entry"):
-            return
-        self._entry.delete(0, "end")
-        self._entry.insert(0, template)
-        self._entry.focus_set()
-        self._entry.icursor("end")
+    def _do_clear(self) -> None:
+        """Header-bar Clear button: wipe visible transcript, persisted history,
+        and reset the Claude session in one click."""
+        self._transcript.configure(state="normal")
+        self._transcript.delete("1.0", "end")
+        self._transcript.insert("end",
+            "── વાતચીત સાફ થઈ — fresh start ──\n\n", "tool")
+        self._transcript.insert("end", _WELCOME_TEXT + "\n", "tool")
+        self._transcript.configure(state="disabled")
+        if self._on_clear is not None:
+            try:
+                self._on_clear()
+            except Exception:
+                pass
 
     def _submit_text(self) -> None:
         text = self._entry.get().strip()

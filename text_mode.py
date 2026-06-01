@@ -23,6 +23,43 @@ from claude_bridge import ClaudeBridge, StreamEvent
 from dialog_loop import DialogTranscriptEntry
 
 
+def _format_tool_use(block: dict) -> str:
+    """Turn a tool_use stream block into a one-line human description.
+
+    Replaces the previous cryptic ``[tool Bash]`` tag with the actual
+    command / file path so the user can see what Claude is doing in
+    real time, the same way Claude Code's terminal UI shows it.
+    """
+    name = block.get("name", "?")
+    inp = block.get("input") or {}
+
+    def short(s: str, n: int = 90) -> str:
+        s = str(s).split("\n", 1)[0].strip()
+        return s if len(s) <= n else s[: n - 1] + "…"
+
+    if name == "Bash":
+        return f"⚡  {short(inp.get('command', ''))}"
+    if name == "Read":
+        return f"📖  Read {short(inp.get('file_path', '?'), 100)}"
+    if name == "Write":
+        return f"✏️  Write {short(inp.get('file_path', '?'), 100)}"
+    if name == "Edit":
+        return f"✏️  Edit {short(inp.get('file_path', '?'), 100)}"
+    if name == "Glob":
+        return f"🔍  Glob {short(inp.get('pattern', '?'))}"
+    if name == "Grep":
+        return f"🔍  Grep {short(inp.get('pattern', '?'))}"
+    if name == "LS":
+        return f"📂  LS {short(inp.get('path', '?'), 100)}"
+    if name == "WebSearch":
+        return f"🌐  Search: {short(inp.get('query', '?'))}"
+    if name == "WebFetch":
+        return f"🌐  Fetch: {short(inp.get('url', '?'), 100)}"
+    if name == "Task":
+        return f"🤖  Task: {short(inp.get('description', '?'))}"
+    return f"⚙️  {name}"
+
+
 class TextModeDriver:
     """Lightweight stand-in for DialogLoop that only does text I/O.
 
@@ -138,8 +175,7 @@ class TextModeDriver:
             if ev.kind == "text_delta":
                 self._emit("assistant", ev.text)
             elif ev.kind == "tool_use":
-                d = ev.data or {}
-                self._emit("tool", f"[tool {d.get('name','?')}]")
+                self._emit("tool", _format_tool_use(ev.data or {}))
             elif ev.kind == "system":
                 d = ev.data or {}
                 if d.get("subtype") == "api_retry":

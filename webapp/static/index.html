@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="gu">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GujaratiClaude</title>
+  <link rel="stylesheet" href="/static/style.css" />
+  <link rel="stylesheet"
+        href="https://cdn.jsdelivr.net/npm/highlight.js@11.10.0/styles/atom-one-dark.min.css" />
+</head>
+<body>
+  <div id="app">
+
+    <header class="topbar">
+      <div class="status">
+        <span id="state-dot" class="dot idle" title="નિષ્ક્રિય"></span>
+        <span id="state-label">નિષ્ક્રિય</span>
+      </div>
+      <h1 class="brand">GujaratiClaude</h1>
+      <div class="topbar-actions">
+        <button id="clear-btn" type="button" title="વાતચીત સાફ કરો">🧹 Clear</button>
+      </div>
+    </header>
+
+    <main class="layout">
+
+      <section class="chat-pane">
+        <div id="messages" class="messages">
+          <div class="welcome">
+            <h2>નમસ્તે! 👋</h2>
+            <p>ગુજરાતી માં નીચે લખીને Claude સાથે વાત શરૂ કરો.</p>
+            <ul>
+              <li>ફાઇલ વાંચો / બદલો, code લખો, commands ચલાવો</li>
+              <li>Excel data વાંચીને chart બનાવો (<code>outputs/</code> માં save થાય છે)</li>
+              <li>React અથવા Next app બનાવો અને localhost પર run કરો</li>
+              <li>GitHub પર push કરો, Vercel પર deploy કરો</li>
+            </ul>
+          </div>
+        </div>
+
+        <form id="input-form" class="input-form" autocomplete="off">
+          <textarea id="text-input"
+                    rows="1"
+                    placeholder="અહીં ગુજરાતી માં લખો... (Enter to send, Shift+Enter for new line)"
+                    autofocus></textarea>
+          <button type="submit" id="send-btn" title="મોકલો">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor"
+                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M22 2L11 13"></path>
+              <path d="M22 2l-7 20-4-9-9-4 20-7z"></path>
+            </svg>
+          </button>
+        </form>
+      </section>
+
+      <aside class="outputs-pane">
+        <div class="outputs-header">
+          <h3>📂 Outputs</h3>
+          <button id="refresh-outputs" type="button" title="Refresh">↻</button>
+        </div>
+        <ul id="file-list" class="file-list"></ul>
+        <div id="preview" class="preview">
+          <div class="preview-empty">Claude saves charts &amp; files here.<br>Click a file to preview.</div>
+        </div>
+      </aside>
+
+    </main>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/highlight.js@11.10.0/lib/core.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/highlight.js@11.10.0/lib/languages/python.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/highlight.js@11.10.0/lib/languages/javascript.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/highlight.js@11.10.0/lib/languages/typescript.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/highlight.js@11.10.0/lib/languages/bash.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/highlight.js@11.10.0/lib/languages/json.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/highlight.js@11.10.0/lib/languages/xml.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/highlight.js@11.10.0/lib/languages/css.min.js"></script>
+  <script src="/static/app.js"></script>
+</body>
+</html>

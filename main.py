@@ -12,10 +12,16 @@ Run on Windows from ``launch.bat`` (which activates the venv first).
 from __future__ import annotations
 
 import argparse
+import faulthandler
 import sys
 from pathlib import Path
 
 import config
+
+# Dump tracebacks for native crashes (sv_ttk theme, tkinterweb, PIL, etc.)
+# straight to stderr — otherwise a segfault gives the user a window that
+# silently disappears.
+faulthandler.enable()
 
 
 def _preflight(claude_bin: str) -> None:
@@ -54,8 +60,9 @@ def parse_args() -> argparse.Namespace:
     ap.add_argument("--mock", action="store_true",
                     help="Run without heavy backends — useful for GUI smoke tests.")
     ap.add_argument("--text", action="store_true",
-                    help="Keyboard input only — bypass mic/STT/TTS. Useful before "
-                         "wake word / IndicF5 / Whisper are set up.")
+                    help="Tkinter keyboard-only mode (legacy). Bypass mic/STT/TTS.")
+    ap.add_argument("--web", action="store_true",
+                    help="Launch the local webapp (FastAPI + pywebview) — the new default UI.")
     return ap.parse_args()
 
 
@@ -66,6 +73,9 @@ def main() -> int:
         return _run_mock()
 
     _preflight(config.CLAUDE_BIN)
+
+    if args.web:
+        return _run_web(args)
 
     if args.text:
         return _run_text(args)
@@ -111,6 +121,17 @@ def main() -> int:
             wake.stop()
         dialog.shutdown()
     return 0
+
+
+def _run_web(args) -> int:
+    """Launch the webapp: FastAPI server on localhost + pywebview window."""
+    from webapp.webapp_main import run as run_web
+
+    project_dir = Path(args.project_dir).resolve()
+    if not project_dir.is_dir():
+        print(f"--project-dir {project_dir} is not a directory", file=sys.stderr)
+        return 2
+    return run_web(project_dir=project_dir)
 
 
 def _run_text(args) -> int:

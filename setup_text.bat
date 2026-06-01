@@ -24,15 +24,17 @@ if errorlevel 1 (
 echo Creating conda env "gc311" with Python 3.11...
 call conda create -n gc311 python=3.11 -y || exit /b 1
 
-echo Installing Python data + GUI libs into gc311...
+echo Installing Python deps into gc311 (data stack + webapp)...
 call conda run -n gc311 --no-capture-output pip install --quiet ^
     pillow matplotlib pandas "numpy<2" openpyxl pytest ^
+    fastapi "uvicorn[standard]" pywebview ^
     sv-ttk tkinterweb || exit /b 1
 
 echo.
 echo ============================================================
 echo Setup complete.
-echo Run launch_text.bat to start the dashboard.
+echo Run launch_web.bat for the new webapp dashboard.
+echo (Or launch_text.bat for the legacy Tkinter UI.)
 echo (Tip: also run `claude auth status` to confirm Claude is logged in,
 echo  and `gh auth login` if you want Claude to create GitHub repos.)
 echo ============================================================
