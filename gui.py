@@ -64,12 +64,14 @@ class GujaratiClaudeGUI:
         on_close: Callable[[], None],
         outputs_dir: Path,
         on_text_submit: Optional[Callable[[str], None]] = None,
+        on_clear: Optional[Callable[[], None]] = None,
         theme: str = "dark",
     ) -> None:
         self._on_wake = on_wake
         self._on_stop = on_stop
         self._on_close = on_close
         self._on_text_submit = on_text_submit
+        self._on_clear = on_clear
 
         self._events: Queue[tuple[str, object]] = Queue()
         self._max_transcript_chars = 12000
@@ -174,9 +176,18 @@ class GujaratiClaudeGUI:
 
     def _quick_action(self, template: str) -> None:
         if template == "__CLEAR__":
+            # Visual wipe
             self._transcript.configure(state="normal")
             self._transcript.delete("1.0", "end")
+            self._transcript.insert("end",
+                "── વાતચીત સાફ થઈ — fresh start ──\n", "tool")
             self._transcript.configure(state="disabled")
+            # Wipe persisted history + reset Claude session (caller hook)
+            if self._on_clear is not None:
+                try:
+                    self._on_clear()
+                except Exception:
+                    pass
             return
         if not hasattr(self, "_entry"):
             return

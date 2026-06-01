@@ -130,6 +130,7 @@ def _run_text(args) -> int:
         on_close=driver.shutdown,
         outputs_dir=config.OUTPUTS_DIR,
         on_text_submit=driver.submit_text,
+        on_clear=driver.clear_history,
     )
     driver.add_state_listener(gui.push_state)
     driver.add_transcript_listener(gui.push_transcript)

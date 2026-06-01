@@ -156,6 +156,26 @@ class TextModeDriver:
     def wake(self) -> None: ...
     def stop_dialog(self) -> None: ...
 
+    # ---- Clear / reset ----------------------------------------------------
+
+    def clear_history(self) -> None:
+        """Wipe persisted transcript AND force a fresh Claude session next turn.
+
+        The currently-running ``claude`` subprocess (if any) is closed so the
+        next user message spawns a new one without ``--resume`` — Claude
+        starts with empty memory just like a first-ever run.
+        """
+        self._history = history_mod.History()
+        history_mod.save(self._history)
+        if self._started:
+            try:
+                self._bridge.close()
+            except Exception:
+                pass
+            self._bridge.resume_session_id = None
+            self._bridge.observed_session_id = None
+            self._started = False
+
     def shutdown(self) -> None:
         if self._started:
             self._bridge.close()
