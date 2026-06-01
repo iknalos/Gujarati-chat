@@ -192,6 +192,14 @@ function handleServerMessage(msg) {
     case "history":
     case "transcript":
       if (msg.role === "user") {
+        // Defensive: a new user turn means any in-flight assistant bubble
+        // should be considered finished, even if turn_end hasn't arrived
+        // yet (race between pump_events and receive loop).
+        if (currentAssistant) {
+          renderAssistantMarkdown();
+          currentAssistant = null;
+        }
+        hideTyping();
         appendUser(msg.text);
       } else if (msg.role === "assistant") {
         // First chunk of the turn — replace typing indicator with real content

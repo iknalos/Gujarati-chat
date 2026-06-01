@@ -19,3 +19,6 @@ prompts/gu_reference.wav
 outputs/
 
 .commit_msg.tmp
+
+.web_stderr.log
+.web_stdout.log

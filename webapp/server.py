@@ -187,15 +187,30 @@ async def ws_endpoint(ws: WebSocket):
     await ws.accept()
     loop = asyncio.get_event_loop()
 
-    # Lazy-start the bridge on first connection (so server startup is cheap)
+    # Retry-start the bridge if startup pre-warm failed or the subprocess
+    # has since died.
     def _ensure_bridge():
         if _bridge._proc is None or _bridge._proc.poll() is not None:
             _bridge.start()
 
     await loop.run_in_executor(None, _ensure_bridge)
 
-    # Pump bridge events to the client
+    # Single FIFO send queue: both user-echo (from receive loop) and bridge
+    # events (from pump_events) put messages here; one sender task drains it.
+    # This guarantees client-visible order matches enqueue order, fixing the
+    # "new turn's text appended to old bubble" race.
+    out_q: asyncio.Queue = asyncio.Queue()
     pump_running = True
+
+    async def sender():
+        while pump_running:
+            msg = await out_q.get()
+            if msg is None:
+                return
+            try:
+                await ws.send_json(msg)
+            except Exception:
+                return
 
     async def pump_events():
         while pump_running:
@@ -206,23 +221,17 @@ async def ws_endpoint(ws: WebSocket):
             except Empty:
                 continue
             except Exception as exc:
-                try:
-                    await ws.send_json({"type": "error", "message": str(exc)})
-                except Exception:
-                    return
+                await out_q.put({"type": "error", "message": str(exc)})
                 continue
             msg = _stream_event_to_msg(ev)
             if msg is not None:
-                try:
-                    await ws.send_json(msg)
-                except Exception:
-                    return
+                await out_q.put(msg)
 
+    sender_task = asyncio.create_task(sender())
     pump_task = asyncio.create_task(pump_events())
 
     try:
-        # Send a "ready" so the client can hide spinner / focus input
-        await ws.send_json({
+        await out_q.put({
             "type": "ready",
             "project_dir": str(_PROJECT_DIR),
             "outputs_dir": str(config.OUTPUTS_DIR),
@@ -237,15 +246,17 @@ async def ws_endpoint(ws: WebSocket):
                 if not text:
                     continue
                 _history.append("user", text)
-                await ws.send_json({"type": "transcript", "role": "user", "text": text})
+                # User echo goes through the SAME FIFO queue as bridge events
+                # — guarantees it's ordered correctly relative to any pending
+                # turn_end from a previous response.
+                await out_q.put({"type": "transcript", "role": "user", "text": text})
                 try:
                     await loop.run_in_executor(None, _bridge.send, text)
                 except Exception as exc:
-                    await ws.send_json({"type": "transcript", "role": "tool",
-                                        "text": f"[send failed: {exc}]"})
+                    await out_q.put({"type": "transcript", "role": "tool",
+                                     "text": f"[send failed: {exc}]"})
 
             elif kind == "clear":
-                # Wipe persisted history + reset Claude session
                 _history = history_mod.History()
                 history_mod.save(_history)
                 try:
@@ -255,14 +266,15 @@ async def ws_endpoint(ws: WebSocket):
                 _bridge.resume_session_id = None
                 _bridge.observed_session_id = None
                 await loop.run_in_executor(None, _bridge.start)
-                await ws.send_json({"type": "cleared"})
+                await out_q.put({"type": "cleared"})
 
     except WebSocketDisconnect:
         pass
     finally:
         pump_running = False
+        await out_q.put(None)  # poison pill for sender
         pump_task.cancel()
-        # Persist whatever the bridge observed before disconnect
+        sender_task.cancel()
         if _bridge.observed_session_id:
             _history.session_id = _bridge.observed_session_id
         _history.project_dir = str(_PROJECT_DIR)
