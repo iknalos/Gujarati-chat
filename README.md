@@ -36,34 +36,51 @@ for the remaining work.
 
 ---
 
-## Fresh-machine setup (text mode, ~10 minutes)
+## Install on a fresh machine — one line, no clone, no git needed
 
-### Prerequisites — install these once
+Only assumption: **[Claude Code](https://code.claude.com) is installed and authenticated** (`claude auth login` done once). Everything else — Git, Miniconda, Python, Node.js, all packages — is installed for you.
 
-| Tool | Why | Where |
-|---|---|---|
-| **Miniconda** | Python 3.11 env (`gc311`) for matplotlib/pandas/etc. | https://docs.conda.io/en/latest/miniconda.html |
-| **Claude Code CLI** | The brain. Must be authenticated. | https://code.claude.com — then run `claude auth login` |
-| **Node.js 20+** | Lets Claude scaffold React/Next/Vite projects | https://nodejs.org/ (optional unless you want web-dev) |
-| **GitHub CLI** | Lets Claude create new repos for you | https://cli.github.com/ — then run `gh auth login` (optional) |
-| **Vercel CLI** | Lets Claude deploy your sites | `npm install -g vercel` (optional) |
-
-Verify each before the next step:
-
-```cmd
-conda --version
-claude auth status
-node --version
-gh auth status
-```
-
-### Setup the repo — one command (recommended)
+**Open PowerShell and paste:**
 
 ```powershell
-git clone https://github.com/iknalos/Gujarati-chat.git
-cd Gujarati-chat
-.\bootstrap.bat          :: detects + installs everything, runs tests, launches webapp
+irm https://raw.githubusercontent.com/iknalos/Gujarati-chat/main/install.ps1 | iex
 ```
+
+That's the entire setup. The installer:
+
+1. Installs Git via `winget` if missing
+2. Clones the repo to `%USERPROFILE%\Gujarati-chat`
+3. Runs `bootstrap.ps1` which:
+   - Installs Miniconda + Node.js if missing
+   - Creates a Python 3.11 conda env (`gc311`)
+   - Installs all Python packages (FastAPI, pywebview, matplotlib, pandas, …)
+   - Runs the test suite
+   - Launches the webapp
+   - Waits for `http://127.0.0.1:5174` to respond
+   - Prints **READY** when done
+
+~5 minutes on a fresh machine. Idempotent — safe to re-run.
+
+### Or: do it via Claude Code
+
+Open Claude Code on the new machine and paste:
+
+> Run `irm https://raw.githubusercontent.com/iknalos/Gujarati-chat/main/install.ps1 | iex` and let me know when it's ready.
+
+Claude will execute it (with one approval click for the Bash call), monitor the output, and confirm when the webapp is up.
+
+### Fresh-machine prerequisites (handled automatically)
+
+| Tool | Why | How install.ps1 handles it |
+|---|---|---|
+| **Git** | Clone the repo | `winget install Git.Git` if missing |
+| **Miniconda** | Python 3.11 env (`gc311`) | `winget install Anaconda.Miniconda3` |
+| **Claude Code CLI** | The brain. Must be authenticated. | **You install once manually** from https://code.claude.com + `claude auth login` |
+| **Node.js 20+** | Scaffold React/Next/Vite projects | `winget install OpenJS.NodeJS.LTS` |
+| **GitHub CLI** (optional) | Create new GitHub repos | `winget install GitHub.cli` + `gh auth login` |
+| **Vercel CLI** (optional) | Deploy sites | `npm install -g vercel` (installed when Node is present) |
+
+See [INSTALL.md](INSTALL.md) for the detailed step-by-step + troubleshooting.
 
 `bootstrap.bat` checks for git, conda, Node, Claude Code; installs the missing ones via `winget`; creates the `gc311` Python 3.11 env; installs all Python deps; runs the test suite; launches the webapp; and reports **READY** when `localhost:5174` is serving. **~5 minutes total** on a fresh machine. Idempotent — safe to re-run.
 
