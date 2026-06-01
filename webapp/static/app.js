@@ -26,17 +26,20 @@ if (window.marked) {
 
 // ---- DOM refs ----
 const els = {
-  messages:    document.getElementById("messages"),
-  welcome:     document.querySelector(".welcome"),
-  input:       document.getElementById("text-input"),
-  form:        document.getElementById("input-form"),
-  sendBtn:     document.getElementById("send-btn"),
-  clearBtn:    document.getElementById("clear-btn"),
-  fileList:    document.getElementById("file-list"),
-  preview:     document.getElementById("preview"),
-  refreshBtn:  document.getElementById("refresh-outputs"),
-  stateDot:    document.getElementById("state-dot"),
-  stateLabel:  document.getElementById("state-label"),
+  messages:      document.getElementById("messages"),
+  welcome:       document.querySelector(".welcome"),
+  input:         document.getElementById("text-input"),
+  form:          document.getElementById("input-form"),
+  sendBtn:       document.getElementById("send-btn"),
+  clearBtn:      document.getElementById("clear-btn"),
+  attachBtn:     document.getElementById("attach-btn"),
+  filePicker:    document.getElementById("file-picker"),
+  attachedFiles: document.getElementById("attached-files"),
+  fileList:      document.getElementById("file-list"),
+  preview:       document.getElementById("preview"),
+  refreshBtn:    document.getElementById("refresh-outputs"),
+  stateDot:      document.getElementById("state-dot"),
+  stateLabel:    document.getElementById("state-label"),
 };
 
 const STATE_LABELS = {
@@ -111,9 +114,36 @@ function appendTool(text) {
   hideWelcome();
   const wrap = document.createElement("div");
   wrap.className = "msg tool";
-  wrap.textContent = text;
+  const card = document.createElement("div");
+  card.className = "tool-card";
+  card.textContent = text;
+  card.title = text;  // tooltip shows full text if truncated
+  wrap.appendChild(card);
   els.messages.appendChild(wrap);
   scrollToBottom();
+}
+
+// ---- Typing indicator (pulsing dots while Claude composes) ----
+let typingBubble = null;
+function showTyping() {
+  if (typingBubble) return;
+  hideWelcome();
+  const wrap = document.createElement("div");
+  wrap.className = "msg typing";
+  wrap.innerHTML = `
+    <div class="bubble">
+      <span class="typing-label">Claude વિચારી રહ્યું છે</span>
+      <span class="typing-dots"><span></span><span></span><span></span></span>
+    </div>`;
+  els.messages.appendChild(wrap);
+  typingBubble = wrap;
+  scrollToBottom();
+}
+function hideTyping() {
+  if (typingBubble) {
+    typingBubble.remove();
+    typingBubble = null;
+  }
 }
 
 function escapeHtml(s) {
@@ -156,24 +186,26 @@ function connect() {
 function handleServerMessage(msg) {
   switch (msg.type) {
     case "ready":
-      // Server tells us project_dir, outputs_dir — could display
       refreshOutputs();
-      // Load and replay history
       fetchHistory();
       break;
-    case "history": // legacy
+    case "history":
     case "transcript":
       if (msg.role === "user") {
         appendUser(msg.text);
       } else if (msg.role === "assistant") {
+        // First chunk of the turn — replace typing indicator with real content
+        hideTyping();
         setState("thinking");
         appendAssistantChunk(msg.text);
       } else if (msg.role === "tool") {
+        // Tool calls keep the typing indicator hidden but show their card
+        hideTyping();
         appendTool(msg.text);
       }
       break;
     case "turn_end":
-      // Finalize current assistant bubble
+      hideTyping();
       if (currentAssistant) {
         renderAssistantMarkdown();
         currentAssistant = null;
@@ -182,17 +214,19 @@ function handleServerMessage(msg) {
       refreshOutputs();
       break;
     case "cleared":
-      // Wipe DOM, reset state
       els.messages.innerHTML = "";
       currentAssistant = null;
+      typingBubble = null;
+      attachedFiles = [];
+      renderAttachedFiles();
       hideWelcomeReset();
       setState("idle");
       break;
     case "error":
+      hideTyping();
       appendTool(`[server error: ${msg.message}]`);
       break;
     default:
-      // ignore unknown
       break;
   }
 }
@@ -237,14 +271,78 @@ async function fetchHistory() {
   }
 }
 
+// ---- Attached files (paths Claude should Read) ----
+let attachedFiles = [];   // [{name, path}]
+function renderAttachedFiles() {
+  els.attachedFiles.innerHTML = "";
+  for (const [i, f] of attachedFiles.entries()) {
+    const chip = document.createElement("span");
+    chip.className = "chip";
+    chip.innerHTML = `
+      📎 <span>${escapeHtml(f.name)}</span>
+      <button type="button" title="Remove" data-idx="${i}">✕</button>
+    `;
+    chip.querySelector("button").addEventListener("click", (e) => {
+      const idx = parseInt(e.target.dataset.idx, 10);
+      attachedFiles.splice(idx, 1);
+      renderAttachedFiles();
+    });
+    els.attachedFiles.appendChild(chip);
+  }
+}
+
+els.attachBtn.addEventListener("click", () => els.filePicker.click());
+els.filePicker.addEventListener("change", (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  // Browsers don't expose absolute paths for security. pywebview's file
+  // input does expose them via the `path` property when available.
+  // Fallback: use the file name and ask the user to drag the file or use
+  // the file picker from the OS — this is a known browser limitation.
+  const fullPath = file.path || file.webkitRelativePath || file.name;
+  attachedFiles.push({ name: file.name, path: fullPath });
+  renderAttachedFiles();
+  els.filePicker.value = "";
+});
+
+// Drag-and-drop files onto the chat area as a richer alternative.
+els.messages.addEventListener("dragover", (e) => {
+  e.preventDefault();
+  els.messages.style.background = "rgba(201,95,63,0.04)";
+});
+els.messages.addEventListener("dragleave", () => {
+  els.messages.style.background = "";
+});
+els.messages.addEventListener("drop", (e) => {
+  e.preventDefault();
+  els.messages.style.background = "";
+  for (const f of e.dataTransfer.files) {
+    const fullPath = f.path || f.name;
+    attachedFiles.push({ name: f.name, path: fullPath });
+  }
+  renderAttachedFiles();
+});
+
 // ---- Input handling ----
 function submitInput() {
   const text = els.input.value.trim();
-  if (!text || !ws || ws.readyState !== WebSocket.OPEN) return;
-  ws.send(JSON.stringify({ type: "user_message", text }));
+  if (!text && attachedFiles.length === 0) return;
+  if (!ws || ws.readyState !== WebSocket.OPEN) return;
+
+  // Prepend attached file refs so Claude knows to Read them
+  let finalText = text;
+  if (attachedFiles.length > 0) {
+    const refs = attachedFiles.map(f => `@${f.path}`).join(" ");
+    finalText = refs + (text ? "\n\n" + text : "");
+  }
+
+  ws.send(JSON.stringify({ type: "user_message", text: finalText }));
   els.input.value = "";
+  attachedFiles = [];
+  renderAttachedFiles();
   autoresize();
   setState("thinking");
+  showTyping();   // immediate visual feedback before any server response
 }
 
 els.form.addEventListener("submit", (e) => {

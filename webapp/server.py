@@ -49,6 +49,18 @@ app = FastAPI(title="GujaratiClaude")
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 
+@app.on_event("startup")
+async def _prewarm_bridge() -> None:
+    """Spawn the claude subprocess on server boot so the first user message
+    doesn't pay the ~3-5 s cold-start cost. Failure here is non-fatal: the
+    /ws handler will retry on first connection."""
+    import asyncio as _aio
+    try:
+        await _aio.get_event_loop().run_in_executor(None, _bridge.start)
+    except Exception as exc:
+        print(f"prewarm failed (will retry on first WS): {exc}")
+
+
 # ---------------------------------------------------------------------------
 # REST endpoints
 # ---------------------------------------------------------------------------

@@ -166,13 +166,109 @@ html, body {
 }
 .msg.assistant .bubble pre code { font-family: Consolas, "Courier New", monospace; }
 
+/* Tool-call card: small inline badge so it stands out from chat text */
 .msg.tool {
+  margin: 6px 0 6px 4px;
+  display: flex;
+}
+.msg.tool .tool-card {
+  background: var(--bg-3);
+  border: 1px solid var(--border-2);
+  border-left: 3px solid var(--accent);
+  padding: 6px 12px;
+  border-radius: 6px;
   color: var(--tool-fg);
   font-family: Consolas, "Courier New", monospace;
-  font-size: 13px;
-  margin: 4px 0 4px 4px;
-  opacity: 0.85;
+  font-size: 12.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 80%;
 }
+
+/* Typing indicator: three pulsing dots while Claude composes */
+.msg.typing {
+  display: flex; justify-content: flex-start;
+}
+.msg.typing .bubble {
+  background: var(--asst-bg);
+  padding: 14px 18px;
+  border-radius: 14px 14px 14px 4px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.typing-label {
+  color: var(--fg-muted);
+  font-size: 13px;
+  margin-right: 4px;
+}
+.typing-dots {
+  display: inline-flex;
+  gap: 4px;
+}
+.typing-dots span {
+  width: 7px; height: 7px;
+  background: var(--fg-muted);
+  border-radius: 50%;
+  animation: typingPulse 1.2s infinite ease-in-out;
+}
+.typing-dots span:nth-child(2) { animation-delay: 0.2s; }
+.typing-dots span:nth-child(3) { animation-delay: 0.4s; }
+@keyframes typingPulse {
+  0%, 80%, 100% { opacity: 0.3; transform: translateY(0); }
+  40%           { opacity: 1.0; transform: translateY(-2px); }
+}
+
+/* Attached-files chip row */
+.attached-files {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 0 20px;
+  background: var(--bg-2);
+}
+.attached-files:not(:empty) {
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+.attached-files .chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--bg-3);
+  border: 1px solid var(--border-2);
+  padding: 4px 10px;
+  border-radius: 14px;
+  font-size: 12px;
+  color: var(--fg-muted);
+  font-family: Consolas, monospace;
+}
+.attached-files .chip button {
+  background: transparent;
+  border: none;
+  color: var(--fg-dim);
+  cursor: pointer;
+  padding: 0;
+  font-size: 14px;
+  line-height: 1;
+}
+.attached-files .chip button:hover { color: var(--accent); }
+
+/* Attach button shares input-form layout */
+#attach-btn {
+  background: var(--bg-3);
+  color: var(--fg-muted);
+  border: 1px solid var(--border-2);
+  width: 40px;
+  border-radius: 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+#attach-btn:hover { background: var(--border-2); color: var(--fg); }
 
 /* ---------- Input form ---------- */
 .input-form {
