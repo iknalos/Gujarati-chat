@@ -385,39 +385,71 @@ els.clearBtn.addEventListener("click", () => {
 });
 
 // ---- Voice input (Web Speech API SpeechRecognition) ----
+// Behavior: click the mic once to start. Speak freely — pauses are OK.
+// Recognition auto-stops after SILENCE_TIMEOUT_MS of true silence (no
+// new tokens arriving). Click the mic again to stop manually at any time.
 const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+const SILENCE_TIMEOUT_MS = 3000;
 let recognition = null;
 let listening = false;
-let micBaseText = "";   // text already in the input when we started listening
+let micBaseText = "";          // text already in the input when listening started
+let micFinalAccum = "";        // all finalized phrases this session
+let silenceTimer = null;
+let stoppingManually = false;  // distinguishes user-click stop vs silence stop
 
 if (SpeechRec) {
   recognition = new SpeechRec();
-  recognition.lang = "gu-IN";          // Gujarati (India)
-  recognition.continuous = false;       // one utterance per click
+  recognition.lang = "gu-IN";
+  recognition.continuous = true;        // keep going across natural pauses
   recognition.interimResults = true;
 
+  function resetSilenceTimer() {
+    clearTimeout(silenceTimer);
+    silenceTimer = setTimeout(() => {
+      if (listening) {
+        try { recognition.stop(); } catch (e) {}
+      }
+    }, SILENCE_TIMEOUT_MS);
+  }
+
+  recognition.onstart = () => {
+    micFinalAccum = "";
+    stoppingManually = false;
+    // No silence timer yet — wait for first real result so we don't time
+    // out before the user has had a chance to speak.
+  };
+
   recognition.onresult = (event) => {
-    let interim = "", finalText = "";
+    let interim = "";
     for (let i = event.resultIndex; i < event.results.length; i++) {
       const t = event.results[i][0].transcript;
-      if (event.results[i].isFinal) finalText += t;
-      else interim += t;
+      if (event.results[i].isFinal) {
+        micFinalAccum += t + " ";
+      } else {
+        interim += t;
+      }
     }
-    const combined = (micBaseText + " " + finalText + " " + interim).trim();
+    const combined = [micBaseText, micFinalAccum, interim]
+      .map(s => s.trim())
+      .filter(Boolean)
+      .join(" ");
     els.input.value = combined;
     autoresize();
+    resetSilenceTimer();   // any new token resets the silence clock
   };
 
   recognition.onend = () => {
+    clearTimeout(silenceTimer);
     listening = false;
     els.micBtn.classList.remove("listening");
-    // If we got actual transcribed text and the input is non-empty, auto-submit.
+    // Auto-submit if we captured new text
     if (els.input.value.trim() && els.input.value.trim() !== micBaseText.trim()) {
       setTimeout(submitInput, 250);
     }
   };
 
   recognition.onerror = (e) => {
+    clearTimeout(silenceTimer);
     listening = false;
     els.micBtn.classList.remove("listening");
     if (e.error !== "aborted" && e.error !== "no-speech") {
@@ -425,7 +457,6 @@ if (SpeechRec) {
     }
   };
 } else {
-  // Browser without Web Speech API — disable button visually
   els.micBtn.disabled = true;
   els.micBtn.title = "Browser doesn't support Web Speech API";
   els.micBtn.style.opacity = "0.4";
@@ -434,7 +465,8 @@ if (SpeechRec) {
 els.micBtn.addEventListener("click", () => {
   if (!recognition) return;
   if (listening) {
-    recognition.stop();
+    stoppingManually = true;
+    try { recognition.stop(); } catch (e) {}
     return;
   }
   micBaseText = els.input.value;
@@ -443,8 +475,8 @@ els.micBtn.addEventListener("click", () => {
     listening = true;
     els.micBtn.classList.add("listening");
   } catch (e) {
-    // start() throws if already started — just toggle off
-    recognition.stop();
+    // start() throws if already started — toggle off
+    try { recognition.stop(); } catch (e2) {}
   }
 });
 
