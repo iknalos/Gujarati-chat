@@ -35,6 +35,8 @@ const els = {
   attachBtn:     document.getElementById("attach-btn"),
   filePicker:    document.getElementById("file-picker"),
   attachedFiles: document.getElementById("attached-files"),
+  micBtn:        document.getElementById("mic-btn"),
+  ttsToggle:     document.getElementById("tts-toggle"),
   fileList:      document.getElementById("file-list"),
   preview:       document.getElementById("preview"),
   refreshBtn:    document.getElementById("refresh-outputs"),
@@ -96,6 +98,8 @@ function appendAssistantChunk(text) {
   currentAssistant.raw += text;
   renderAssistantMarkdown();
   scrollToBottom();
+  // Feed the same chunk to TTS so Claude's speech follows the text
+  bufferAndSpeak(text);
 }
 
 function renderAssistantMarkdown() {
@@ -218,6 +222,7 @@ function handleServerMessage(msg) {
         renderAssistantMarkdown();
         currentAssistant = null;
       }
+      flushTtsBuffer();   // speak any trailing tail without a terminator
       setState("idle");
       refreshOutputs();
       break;
@@ -376,6 +381,127 @@ els.clearBtn.addEventListener("click", () => {
   if (!ws || ws.readyState !== WebSocket.OPEN) return;
   if (confirm("આખી વાતચીત સાફ કરવી? Claude પણ બધું ભૂલી જશે.")) {
     ws.send(JSON.stringify({ type: "clear" }));
+  }
+});
+
+// ---- Voice input (Web Speech API SpeechRecognition) ----
+const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+let recognition = null;
+let listening = false;
+let micBaseText = "";   // text already in the input when we started listening
+
+if (SpeechRec) {
+  recognition = new SpeechRec();
+  recognition.lang = "gu-IN";          // Gujarati (India)
+  recognition.continuous = false;       // one utterance per click
+  recognition.interimResults = true;
+
+  recognition.onresult = (event) => {
+    let interim = "", finalText = "";
+    for (let i = event.resultIndex; i < event.results.length; i++) {
+      const t = event.results[i][0].transcript;
+      if (event.results[i].isFinal) finalText += t;
+      else interim += t;
+    }
+    const combined = (micBaseText + " " + finalText + " " + interim).trim();
+    els.input.value = combined;
+    autoresize();
+  };
+
+  recognition.onend = () => {
+    listening = false;
+    els.micBtn.classList.remove("listening");
+    // If we got actual transcribed text and the input is non-empty, auto-submit.
+    if (els.input.value.trim() && els.input.value.trim() !== micBaseText.trim()) {
+      setTimeout(submitInput, 250);
+    }
+  };
+
+  recognition.onerror = (e) => {
+    listening = false;
+    els.micBtn.classList.remove("listening");
+    if (e.error !== "aborted" && e.error !== "no-speech") {
+      appendTool(`[mic error: ${e.error}]`);
+    }
+  };
+} else {
+  // Browser without Web Speech API — disable button visually
+  els.micBtn.disabled = true;
+  els.micBtn.title = "Browser doesn't support Web Speech API";
+  els.micBtn.style.opacity = "0.4";
+}
+
+els.micBtn.addEventListener("click", () => {
+  if (!recognition) return;
+  if (listening) {
+    recognition.stop();
+    return;
+  }
+  micBaseText = els.input.value;
+  try {
+    recognition.start();
+    listening = true;
+    els.micBtn.classList.add("listening");
+  } catch (e) {
+    // start() throws if already started — just toggle off
+    recognition.stop();
+  }
+});
+
+// ---- Voice output (Web Speech API speechSynthesis) ----
+let ttsEnabled = false;
+let ttsBuffer = "";
+let preferredVoice = null;
+
+function loadVoices() {
+  if (!window.speechSynthesis) return;
+  const voices = speechSynthesis.getVoices();
+  // Prefer an explicitly gu-IN voice; fall back to any gu-* or hi-IN
+  preferredVoice =
+    voices.find(v => v.lang === "gu-IN") ||
+    voices.find(v => v.lang.startsWith("gu")) ||
+    voices.find(v => v.lang === "hi-IN") ||
+    null;
+}
+if (window.speechSynthesis) {
+  loadVoices();
+  speechSynthesis.onvoiceschanged = loadVoices;
+}
+
+function speak(text) {
+  if (!ttsEnabled || !window.speechSynthesis) return;
+  const clean = text.replace(/[*_`#>~|]/g, "").trim();
+  if (!clean) return;
+  const u = new SpeechSynthesisUtterance(clean);
+  u.lang = "gu-IN";
+  if (preferredVoice) u.voice = preferredVoice;
+  u.rate = 1.0;
+  speechSynthesis.speak(u);
+}
+
+function bufferAndSpeak(text) {
+  if (!ttsEnabled) return;
+  ttsBuffer += text;
+  // Split on Gujarati / Latin sentence terminators.
+  const parts = ttsBuffer.split(/(?<=[.।?!])\s+/);
+  if (parts.length > 1) {
+    for (let i = 0; i < parts.length - 1; i++) speak(parts[i]);
+    ttsBuffer = parts[parts.length - 1];
+  }
+}
+
+function flushTtsBuffer() {
+  if (ttsBuffer.trim()) speak(ttsBuffer);
+  ttsBuffer = "";
+}
+
+els.ttsToggle.addEventListener("click", () => {
+  ttsEnabled = !ttsEnabled;
+  els.ttsToggle.classList.toggle("active", ttsEnabled);
+  els.ttsToggle.textContent = ttsEnabled ? "🔊 Speak" : "🔇 Speak";
+  if (!ttsEnabled && window.speechSynthesis) {
+    speechSynthesis.cancel();   // stop any in-flight speech
+    ttsBuffer = "";
   }
 });
 

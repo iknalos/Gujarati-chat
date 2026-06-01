@@ -255,8 +255,8 @@ html, body {
 }
 .attached-files .chip button:hover { color: var(--accent); }
 
-/* Attach button shares input-form layout */
-#attach-btn {
+/* Attach + mic buttons share styling */
+#attach-btn, #mic-btn {
   background: var(--bg-3);
   color: var(--fg-muted);
   border: 1px solid var(--border-2);
@@ -267,8 +267,27 @@ html, body {
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  transition: background 0.15s, color 0.15s, box-shadow 0.15s;
 }
-#attach-btn:hover { background: var(--border-2); color: var(--fg); }
+#attach-btn:hover, #mic-btn:hover { background: var(--border-2); color: var(--fg); }
+#mic-btn.listening {
+  background: #ff4d4d;
+  color: white;
+  border-color: #ff4d4d;
+  box-shadow: 0 0 0 4px rgba(255, 77, 77, 0.25);
+  animation: micPulse 1.4s infinite;
+}
+@keyframes micPulse {
+  0%, 100% { box-shadow: 0 0 0 4px rgba(255, 77, 77, 0.25); }
+  50%      { box-shadow: 0 0 0 8px rgba(255, 77, 77, 0.10); }
+}
+
+/* TTS toggle button in topbar */
+#tts-toggle.active {
+  background: rgba(76, 175, 80, 0.15);
+  color: #7ee787;
+  border-color: rgba(76, 175, 80, 0.5);
+}
 
 /* ---------- Input form ---------- */
 .input-form {
