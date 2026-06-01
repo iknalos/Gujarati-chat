@@ -1,9 +1,12 @@
 """Text-only mode: GUI entry box → Claude bridge → GUI transcript.
 
 Bypasses the microphone, Whisper, and IndicF5 entirely. Useful for:
-- Verifying Phase 3 (bridge plumbing) before you set up audio
+- Verifying the bridge plumbing before you set up audio
 - Using GujaratiClaude on a machine without a CUDA GPU
 - Quick testing during development
+
+Persists conversation history (visual transcript + Claude session_id) via
+``history.py`` so the user can close the app and pick up where they left off.
 
 Run via ``main.py --text``.
 """
@@ -15,6 +18,7 @@ from queue import Empty
 from typing import Callable
 
 import config
+import history as history_mod
 from claude_bridge import ClaudeBridge, StreamEvent
 from dialog_loop import DialogTranscriptEntry
 
@@ -33,12 +37,20 @@ class TextModeDriver:
         self._project_dir = project_dir
         self._state_listeners: list[Callable[[str], None]] = []
         self._transcript_listeners: list[Callable[[DialogTranscriptEntry], None]] = []
+
+        # Load persisted history. If this project_dir differs from what we
+        # saved last time, we still resume the same Claude session but the
+        # visual transcript replay is mainly useful for the same project.
+        self._history = history_mod.load()
+        resume_id = self._history.session_id
+
         self._bridge = ClaudeBridge(
             project_dir=project_dir,
             system_prompt_file=config.GU_SYSTEM_PROMPT_FILE,
             claude_bin=config.CLAUDE_BIN,
             permission_mode=config.PERMISSION_MODE,
             strip_code=False,
+            resume_session_id=resume_id,
         )
         self._started = False
         self._lock = threading.Lock()
@@ -58,13 +70,35 @@ class TextModeDriver:
             except Exception:
                 pass
 
-    def _emit(self, role: str, text: str) -> None:
+    def _emit(self, role: str, text: str, record: bool = True) -> None:
         entry = DialogTranscriptEntry(role=role, text=text)
         for fn in list(self._transcript_listeners):
             try:
                 fn(entry)
             except Exception:
                 pass
+        # Record real user/assistant turns into history; skip transient tool
+        # tags ([tool Bash], [bridge error: ...], etc.) — those would clutter
+        # the saved transcript.
+        if record and role in ("user", "assistant"):
+            self._history.append(role, text)
+
+    # ---- Replay on startup ------------------------------------------------
+
+    def replay_history(self) -> None:
+        """Push every saved entry into the GUI as a faint, non-recording emit.
+
+        Caller invokes this AFTER listeners are registered (otherwise the
+        entries go nowhere). The bridge isn't started yet — replay is purely
+        cosmetic; Claude's own memory is resumed via --resume.
+        """
+        if not self._history.transcript:
+            return
+        # Header marker so the user sees where the previous conversation ends
+        self._emit("tool", "── પાછલી વાતચીત / previous conversation ──", record=False)
+        for e in self._history.transcript:
+            self._emit(e.role, e.text, record=False)
+        self._emit("tool", "── નવી વાતચીત / new conversation ──", record=False)
 
     # ---- Driver ----------------------------------------------------------
 
@@ -91,9 +125,9 @@ class TextModeDriver:
 
     def _drain_until_turn_end(self) -> None:
         # 600 s covers long-running tool work like `pnpm install`, `vercel
-        # deploy`, large file reads, etc. We rely on the bridge to also
-        # close the queue if the subprocess dies (it pushes turn_end with
-        # reason=process_exit), so we don't need a tight liveness check.
+        # deploy`, large file reads, etc. The bridge pushes turn_end with
+        # reason=process_exit if the subprocess dies, so no tight liveness
+        # check is needed.
         q = self._bridge.events()
         while True:
             try:
@@ -121,6 +155,13 @@ class TextModeDriver:
     def start(self) -> None: ...
     def wake(self) -> None: ...
     def stop_dialog(self) -> None: ...
+
     def shutdown(self) -> None:
         if self._started:
             self._bridge.close()
+        # Persist whatever the bridge observed (will be None if we never sent
+        # a turn this run, in which case the saved id from last launch sticks).
+        if self._bridge.observed_session_id:
+            self._history.session_id = self._bridge.observed_session_id
+        self._history.project_dir = str(self._project_dir)
+        history_mod.save(self._history)

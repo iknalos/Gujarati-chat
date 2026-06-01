@@ -43,15 +43,20 @@ class ClaudeBridge:
         claude_bin: str = "claude",
         permission_mode: str = "acceptEdits",
         strip_code: bool = True,
+        resume_session_id: Optional[str] = None,
     ) -> None:
         self.project_dir = project_dir
         self.system_prompt_file = system_prompt_file
         self.claude_bin = claude_bin
         self.permission_mode = permission_mode
+        self.resume_session_id = resume_session_id
         self._proc: Optional[subprocess.Popen] = None
         self._filter = ResponseFilter(strip_code=strip_code)
         self._events: "Queue[StreamEvent]" = Queue()
         self._reader_thread: Optional[threading.Thread] = None
+        # Updated from the first "system" init event we see on the stream.
+        # Callers read this on shutdown to persist for the next launch.
+        self.observed_session_id: Optional[str] = None
 
     # ---- Lifecycle ---------------------------------------------------------
 
@@ -65,6 +70,8 @@ class ClaudeBridge:
             "--append-system-prompt-file", str(self.system_prompt_file),
             "--permission-mode", self.permission_mode,
         ]
+        if self.resume_session_id:
+            argv += ["--resume", self.resume_session_id]
         # Strip Claude Code's session-detection env vars: when the wrapper
         # itself runs from inside a Claude Code session, those would make
         # the spawned `claude` exit with "cannot be launched inside another
@@ -191,7 +198,9 @@ class ClaudeBridge:
             yield StreamEvent("turn_end", data=ev)
             return
         if ev_type == "system":
-            # init, api_retry, plugin_install — surface as info for GUI; ignore for TTS
+            # init events carry the session_id we'll persist for --resume next launch
+            if ev.get("subtype") == "init" and ev.get("session_id"):
+                self.observed_session_id = ev.get("session_id")
             yield StreamEvent("system", data=ev)
             return
 

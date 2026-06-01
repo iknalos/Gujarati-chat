@@ -24,9 +24,10 @@ if errorlevel 1 (
 echo Creating conda env "gc311" with Python 3.11...
 call conda create -n gc311 python=3.11 -y || exit /b 1
 
-echo Installing Python data libs into gc311...
+echo Installing Python data + GUI libs into gc311...
 call conda run -n gc311 --no-capture-output pip install --quiet ^
-    pillow matplotlib pandas "numpy<2" openpyxl pytest || exit /b 1
+    pillow matplotlib pandas "numpy<2" openpyxl pytest ^
+    sv-ttk tkinterweb || exit /b 1
 
 echo.
 echo ============================================================

@@ -134,6 +134,10 @@ def _run_text(args) -> int:
     driver.add_state_listener(gui.push_state)
     driver.add_transcript_listener(gui.push_transcript)
 
+    # Replay any persisted transcript into the GUI; Claude's own memory is
+    # restored by the bridge passing --resume <session_id>.
+    driver.replay_history()
+
     watcher = _start_watcher(gui)
 
     try:
