@@ -1,4 +1,4 @@
-# install.ps1 — one-line remote installer for GujaratiClaude.
+﻿# install.ps1 — one-line remote installer for GujaratiClaude.
 #
 # Run via:
 #   irm https://raw.githubusercontent.com/iknalos/Gujarati-chat/main/install.ps1 | iex
@@ -75,3 +75,4 @@ Write-Host -ForegroundColor Cyan "[3/3] Handing off to bootstrap.ps1 (installs c
 Write-Host ""
 Set-Location $Target
 & powershell -ExecutionPolicy Bypass -NoProfile -File $Bootstrap
+

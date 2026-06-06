@@ -1,4 +1,4 @@
-# bootstrap.ps1 — one-shot setup for GujaratiClaude on a fresh Windows machine.
+﻿# bootstrap.ps1 — one-shot setup for GujaratiClaude on a fresh Windows machine.
 #
 # Run from the repo root after `git clone`:
 #   powershell -ExecutionPolicy Bypass -File bootstrap.ps1
@@ -214,3 +214,4 @@ if ($port) {
     Write-Host "Check $RepoDir\.web_stderr.log for errors."
     exit 1
 }
+
