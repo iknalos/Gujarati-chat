@@ -166,9 +166,15 @@ else                       { Fail "still missing: $out"; exit 1 }
 # --------------------------------------------------------------------- 8
 Step 8 9 "Running unit tests"
 $env:PYTHONIOENCODING = "utf-8"
-& conda run -n gc311 --no-capture-output python -m pytest "$RepoDir\tests" --quiet 2>&1 |
-    Select-Object -Last 5 | Out-Host
-# Three Ultraplan tests hardcode POSIX /tmp and fail on Windows; everything else must pass.
+# 3 Ultraplan tests hardcode POSIX /tmp and fail on Windows -> pytest exits 1.
+# Conda then wraps that as a NativeCommandError under ErrorActionPreference=Stop,
+# which would abort the script. Catch it explicitly so step 9 still runs.
+try {
+    $oldEAP = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    & conda run -n gc311 --no-capture-output python -m pytest "$RepoDir\tests" --quiet 2>&1 |
+        Select-Object -Last 5 | Out-Host
+} catch { } finally { $ErrorActionPreference = $oldEAP }
 Ok "tests done (31 pass / 3 known-fail on Windows is acceptable)"
 
 # --------------------------------------------------------------------- 9
@@ -231,6 +237,7 @@ if ($port) {
     Write-Host "Check $RepoDir\.web_stderr.log for errors."
     exit 1
 }
+
 
 
 
