@@ -126,12 +126,12 @@ try {
 if ($envExists) {
     Ok "gc311 env already exists"
 } else {
-    Info "accepting Anaconda channel ToS (required since 2025)..."
-    & conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/main   2>$null | Out-Null
-    & conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/r      2>$null | Out-Null
-    & conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/msys2  2>$null | Out-Null
-    Info "running: conda create -n gc311 python=3.11 -y"
-    & conda create -n gc311 python=3.11 -y | Out-Host
+    # Use conda-forge so we don't depend on Anaconda's commercial-channel ToS,
+    # and include pip explicitly so the env has its own (Py 3.11) pip
+    # rather than falling back to base conda's pip (often Py 3.13 with no
+    # numpy<2 wheel -> tries to compile from source -> needs a C toolchain).
+    Info "running: conda create -n gc311 -c conda-forge --override-channels python=3.11 pip -y"
+    & conda create -n gc311 -c conda-forge --override-channels python=3.11 pip -y | Out-Host
     if ($LASTEXITCODE -ne 0) { Fail "conda env creation failed"; exit 1 }
     Ok "gc311 env created"
 }
@@ -218,5 +218,6 @@ if ($port) {
     Write-Host "Check $RepoDir\.web_stderr.log for errors."
     exit 1
 }
+
 
 
