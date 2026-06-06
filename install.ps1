@@ -12,6 +12,10 @@
 #      conda env, deps, tests, webapp launch)
 
 $ErrorActionPreference = "Stop"
+# Git and some winget tools write normal progress to stderr. In Windows PowerShell 5.1
+# that gets wrapped as a NativeCommandError and halts the script under ErrorActionPreference=Stop.
+# Tell PowerShell to treat native-command stderr as plain output, not errors.
+$PSNativeCommandUseErrorActionPreference = $false
 
 Write-Host ""
 Write-Host -ForegroundColor Cyan "==========================================="
@@ -34,7 +38,7 @@ if (Get-Command git -ErrorAction SilentlyContinue) {
         Write-Host -ForegroundColor Red "winget is unavailable. Install Git manually from https://git-scm.com and re-run."
         exit 1
     }
-    & winget install --id Git.Git --silent --accept-package-agreements --accept-source-agreements 2>&1 | Out-Host
+    & winget install --id Git.Git --silent --accept-package-agreements --accept-source-agreements | Out-Host
     RefreshPath
     if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
         Write-Host -ForegroundColor Red "Git install reported success but 'git' is not on PATH. Open a new terminal and re-run this command."
@@ -48,11 +52,11 @@ $Target = Join-Path $env:USERPROFILE "Gujarati-chat"
 if (Test-Path (Join-Path $Target ".git")) {
     Write-Host -ForegroundColor Green "[2/3] Repo already at $Target — pulling latest..."
     Push-Location $Target
-    try { & git pull --ff-only 2>&1 | Out-Host } catch { }
+    try { & git pull --ff-only | Out-Host } catch { }
     Pop-Location
 } else {
     Write-Host -ForegroundColor Yellow "[2/3] Cloning into $Target..."
-    & git clone https://github.com/iknalos/Gujarati-chat.git $Target 2>&1 | Out-Host
+    & git clone https://github.com/iknalos/Gujarati-chat.git $Target | Out-Host
     if (-not (Test-Path (Join-Path $Target ".git"))) {
         Write-Host -ForegroundColor Red "Clone failed — see error above."
         exit 1
