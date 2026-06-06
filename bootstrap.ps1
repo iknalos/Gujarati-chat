@@ -126,6 +126,10 @@ try {
 if ($envExists) {
     Ok "gc311 env already exists"
 } else {
+    Info "accepting Anaconda channel ToS (required since 2025)..."
+    & conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/main   2>$null | Out-Null
+    & conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/r      2>$null | Out-Null
+    & conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/msys2  2>$null | Out-Null
     Info "running: conda create -n gc311 python=3.11 -y"
     & conda create -n gc311 python=3.11 -y | Out-Host
     if ($LASTEXITCODE -ne 0) { Fail "conda env creation failed"; exit 1 }
@@ -214,4 +218,5 @@ if ($port) {
     Write-Host "Check $RepoDir\.web_stderr.log for errors."
     exit 1
 }
+
 
