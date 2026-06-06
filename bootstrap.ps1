@@ -173,9 +173,22 @@ Ok "tests done (31 pass / 3 known-fail on Windows is acceptable)"
 
 # --------------------------------------------------------------------- 9
 Step 9 9 "Launching the webapp"
-$pythonw = "$env:USERPROFILE\.conda\envs\gc311\pythonw.exe"
+# Resolve the gc311 env path by asking conda directly — depending on the conda
+# install, the env can live at ~/miniconda3/envs/gc311 OR ~/.conda/envs/gc311.
+$envPrefix = (& conda run -n gc311 --no-capture-output python -c "import sys; print(sys.prefix)" | Out-String).Trim()
+$pythonw = Join-Path $envPrefix "pythonw.exe"
 if (-not (Test-Path $pythonw)) {
-    Fail "pythonw not found at $pythonw"
+    # Fallback to common locations
+    foreach ($candidate in @(
+        "$env:USERPROFILE\miniconda3\envs\gc311\pythonw.exe",
+        "$env:USERPROFILE\.conda\envs\gc311\pythonw.exe",
+        "$env:USERPROFILE\anaconda3\envs\gc311\pythonw.exe"
+    )) {
+        if (Test-Path $candidate) { $pythonw = $candidate; break }
+    }
+}
+if (-not (Test-Path $pythonw)) {
+    Fail "pythonw not found in gc311 env (looked under miniconda3, .conda, anaconda3)"
     exit 1
 }
 
@@ -218,6 +231,7 @@ if ($port) {
     Write-Host "Check $RepoDir\.web_stderr.log for errors."
     exit 1
 }
+
 
 
 
