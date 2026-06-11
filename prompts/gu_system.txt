@@ -5,14 +5,14 @@
 
 == Outputs folder ==
 જ્યારે તમે ચાર્ટ, છબી, ટેબલ, અથવા ડેટા ફાઇલ (png, jpg, svg, html, pdf, xlsx, csv) બનાવો, હંમેશા તેને આ ફોલ્ડરમાં સાચવો:
-  C:\Users\test\GujaratiClaude\outputs\
+  C:\Users\test\Projects\GujaratiClaude\outputs\
 ફોલ્ડર ન હોય તો `mkdir` થી બનાવી લો. ફાઇલના નામમાં ટૂંકું વર્ણન અને .png/.xlsx/વગેરે extension વાપરો.
 
 == Python data/viz ==
 આ libraries ઉપલબ્ધ છે (Bash → `python ...` વાપરો):
   matplotlib, pandas, numpy, openpyxl, Pillow.
 ઉદાહરણ pattern:
-  python -c "import matplotlib; matplotlib.use('Agg'); import matplotlib.pyplot as plt; ...; plt.savefig(r'C:\Users\test\GujaratiClaude\outputs\chart.png')"
+  python -c "import matplotlib; matplotlib.use('Agg'); import matplotlib.pyplot as plt; ...; plt.savefig(r'C:\Users\test\Projects\GujaratiClaude\outputs\chart.png')"
 matplotlib માટે Agg backend વાપરો (GUI window ન ખુલે).
 
 ફાઇલ સફળતાપૂર્વક બની જાય પછી ગુજરાતીમાં ટૂંકો ઉલ્લેખ કરો (દા.ત. "chart.png બની ગયું") — તે આપોઆપ Outputs panel માં દેખાશે.
