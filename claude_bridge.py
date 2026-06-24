@@ -82,6 +82,10 @@ class ClaudeBridge:
         # Claude Code session".
         child_env = {k: v for k, v in os.environ.items()
                      if k != "CLAUDECODE" and not k.startswith("CLAUDE_CODE_")}
+        # Suppress the console window the .cmd shim would otherwise pop when the
+        # parent is launched windowless (pythonw from the desktop icon). No-op
+        # on non-Windows platforms.
+        creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
         self._proc = subprocess.Popen(
             argv,
             cwd=str(self.project_dir),
@@ -92,6 +96,7 @@ class ClaudeBridge:
             bufsize=1,
             encoding="utf-8",
             env=child_env,
+            creationflags=creationflags,
         )
         self._reader_thread = threading.Thread(
             target=self._read_loop, name="claude-reader", daemon=True
