@@ -13,10 +13,22 @@ from __future__ import annotations
 
 import argparse
 import faulthandler
+import os
 import sys
 from pathlib import Path
 
 import config
+
+# When launched windowless (pythonw.exe from a desktop shortcut / .lnk) there
+# is no console attached, so sys.stdout and sys.stderr are None. Any print() —
+# or faulthandler.enable() below — then raises and the process dies silently
+# before the window ever appears. Route them to the null device so the app
+# always launches cleanly from an icon. (Running from a terminal is unaffected:
+# stdout/stderr are real there and left alone.)
+if sys.stdout is None:
+    sys.stdout = open(os.devnull, "w")
+if sys.stderr is None:
+    sys.stderr = open(os.devnull, "w")
 
 # Dump tracebacks for native crashes (sv_ttk theme, tkinterweb, PIL, etc.)
 # straight to stderr — otherwise a segfault gives the user a window that
@@ -30,7 +42,11 @@ def _preflight(claude_bin: str) -> None:
     time."""
     import shutil
     import subprocess
-    if not shutil.which(claude_bin):
+    # On Windows the CLI is a `claude.cmd` shim; subprocess won't resolve the
+    # bare name, so use the full path shutil.which() gives us — otherwise the
+    # call below raises WinError 2 and prints a bogus "could not run" warning.
+    resolved = shutil.which(claude_bin)
+    if not resolved:
         print(
             f"⚠  Cannot find '{claude_bin}' on PATH. Install Claude Code "
             f"from https://code.claude.com and ensure it's in PATH.",
@@ -39,7 +55,7 @@ def _preflight(claude_bin: str) -> None:
         return
     try:
         r = subprocess.run(
-            [claude_bin, "auth", "status"], capture_output=True, timeout=10
+            [resolved, "auth", "status"], capture_output=True, timeout=10
         )
         if r.returncode != 0:
             print(

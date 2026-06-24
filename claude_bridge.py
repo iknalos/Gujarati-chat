@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import subprocess
 import threading
 from dataclasses import dataclass
@@ -61,8 +62,11 @@ class ClaudeBridge:
     # ---- Lifecycle ---------------------------------------------------------
 
     def start(self) -> None:
+        # On Windows the CLI is a .cmd shim; subprocess.Popen without shell=True
+        # doesn't auto-resolve .cmd, so we resolve via PATH first.
+        resolved = shutil.which(self.claude_bin) or self.claude_bin
         argv = [
-            self.claude_bin, "-p",
+            resolved, "-p",
             "--input-format", "stream-json",
             "--output-format", "stream-json",
             "--verbose",
